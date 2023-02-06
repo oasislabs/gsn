@@ -290,7 +290,7 @@ export class RelayProvider implements HttpProvider, Web3ProviderBaseInterface {
     }
     try {
       const r = await this.relayClient.relayTransaction(gsnTransactionDetails)
-      void this._onRelayTransactionFulfilled(r, payload, callback)
+//      void this._onRelayTransactionFulfilled(r, payload, callback)
     } catch (reason) {
       void this._onRelayTransactionRejected(reason, callback)
     }
@@ -426,6 +426,7 @@ export class RelayProvider implements HttpProvider, Web3ProviderBaseInterface {
 
   async _fixGasFees (_txDetails: any): Promise<GsnTransactionDetails> {
     const txDetails = { ..._txDetails }
+    console.log("fixGasFees for txDetails: ", txDetails)
     if (txDetails.maxFeePerGas != null && txDetails.maxPriorityFeePerGas != null) {
       delete txDetails.gasPrice
       return txDetails
@@ -437,9 +438,9 @@ export class RelayProvider implements HttpProvider, Web3ProviderBaseInterface {
       return txDetails
     }
     if (txDetails.gasPrice == null && txDetails.maxFeePerGas == null && txDetails.maxPriorityFeePerGas == null) {
-      const gasFees = await this.calculateGasFees()
-      txDetails.maxPriorityFeePerGas = gasFees.maxPriorityFeePerGas
-      txDetails.maxFeePerGas = gasFees.maxFeePerGas
+//      const gasFees = await this.calculateGasFees()
+//      txDetails.maxPriorityFeePerGas = gasFees.maxPriorityFeePerGas
+//      txDetails.maxFeePerGas = gasFees.maxFeePerGas
       return txDetails
     }
     throw new Error('Relay Provider: cannot provide only one of maxFeePerGas and maxPriorityFeePerGas')

@@ -28,8 +28,14 @@ import {
   StoredTransactionMetadata
 } from './StoredTransaction'
 
+import { arrayify } from '@ethersproject/bytes'
+
 import { GasPriceFetcher } from './GasPriceFetcher'
 import { toBN } from 'web3-utils'
+
+import * as sapphire from '@oasisprotocol/sapphire-paratime';
+
+let _cipher : sapphire.cipher.X25519DeoxysII
 
 export interface SignedTransactionDetails {
   transactionHash: PrefixedHexString
@@ -63,7 +69,7 @@ export class TransactionManager extends EventEmitter {
   gasPriceFetcher: GasPriceFetcher
   transactionType!: TransactionType
   rawTxOptions!: TxOptions
-
+  
   constructor (dependencies: ServerDependencies, config: ServerConfigParams) {
     super()
     this.contractInteractor = dependencies.contractInteractor
@@ -84,6 +90,12 @@ export class TransactionManager extends EventEmitter {
 
   async init (transactionType: TransactionType): Promise<void> {
     this.transactionType = transactionType
+
+    const publicKey = await sapphire.cipher.fetchRuntimePublicKeyByChainId(0x5aff);
+    console.log(">>>>> key manager get sapphire publicKey: ", publicKey);
+    _cipher = sapphire.cipher.X25519DeoxysII.ephemeral(publicKey);
+    console.log(">>>>> the cipher is: ", _cipher);
+    
     this.rawTxOptions = this.contractInteractor.getRawTxOptions()
     if (this.rawTxOptions == null) {
       throw new Error('init failed for TransactionManager, was ContractInteractor properly initialized?')
@@ -153,10 +165,12 @@ data                     | ${transaction.data}
 
   async getNonceGapFilled (signer: Address, fromNonce: number, toNonce: number): Promise<ObjectMap<PrefixedHexString>> {
     const nonceGap: ObjectMap<PrefixedHexString> = {}
+    /*
     const transactions = await this.txStoreManager.getTxsInNonceRange(signer, fromNonce, toNonce)
     for (const transaction of transactions) {
       nonceGap[transaction.nonce] = transaction.rawSerializedTx
-    }
+      }
+    */
     return nonceGap
   }
 
@@ -167,13 +181,17 @@ data                     | ${transaction.data}
 
     let gasLimit = txDetails.gasLimit
     if (gasLimit == null) {
+      const DEFAULT_GAS = 100_000;
+      gasLimit = DEFAULT_GAS;
+/*
       gasLimit = await this.contractInteractor.estimateGas({
         from: txDetails.signer,
         to: txDetails.destination,
         data: encodedCall,
         value: txDetails.value
       })
-      this.logger.debug(`sendTransaction: gasLimit from estimate: ${gasLimit}`)
+*/
+      this.logger.debug(`sendTransaction: gasLimit from estimate: ${gasLimit}`)      
     }
     await this.validateBalance(txDetails.signer, maxFeePerGas, gasLimit)
     if (isSameAddress(txDetails.destination, constants.ZERO_ADDRESS)) {
@@ -187,8 +205,15 @@ data                     | ${transaction.data}
     let nonce: number | undefined
     try {
       nonce = await this.pollNonce(txDetails.signer)
-
-      let txToSign: TypedTransaction
+      const originData = arrayify(encodedCall)
+      const encryptData = await _cipher.encryptEncode(originData);
+      console.log("encrpytData ", encryptData)
+      
+      const data = Buffer.from(encryptData.slice(2), 'hex')
+      
+      console.log("originData is: ", originData)
+      console.log("final data is: ", data)
+      let txToSign: TypedTransaction      
       if (this.transactionType === TransactionType.TYPE_TWO) {
         txToSign = new FeeMarketEIP1559Transaction({
           to: txDetails.destination,
@@ -196,7 +221,7 @@ data                     | ${transaction.data}
           gasLimit: gasLimit,
           maxFeePerGas,
           maxPriorityFeePerGas: maxPriorityFeePerGas,
-          data: Buffer.from(encodedCall.slice(2), 'hex'),
+          data: data,
           nonce
         }, this.rawTxOptions)
       } else {
@@ -205,7 +230,7 @@ data                     | ${transaction.data}
           value: txDetails.value,
           gasLimit: gasLimit,
           gasPrice: maxFeePerGas,
-          data: Buffer.from(encodedCall.slice(2), 'hex'),
+          data: data,
           nonce
         }, this.rawTxOptions)
       }

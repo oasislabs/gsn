@@ -356,7 +356,7 @@ export const serverDefaultConfiguration: ServerConfigParams = {
   url: 'http://localhost:8090',
   ethereumNodeUrl: '',
   port: 8090,
-  workdir: '',
+  workdir: '/Users/jameszheng/Documents/Oasis/GSN/gsn/packages/relay',
   refreshStateTimeoutBlocks: 5,
   pendingTransactionTimeoutSeconds: 300,
   dbPruneTxAfterBlocks: 12,
@@ -507,6 +507,7 @@ export function parseServerConfig (args: string[], env: any): any {
     // boolean: filterType(ConfigParamsTypes, 'boolean'),
     default: envDefaults
   })
+  console.log("argv is: ", argv)
   if (argv._.length > 0) {
     error(`unexpected param(s) ${argv._.join(',')}`)
   }
@@ -553,18 +554,22 @@ export async function resolveServerConfig (config: Partial<ServerConfigParams>, 
     },
     environment
   })
+  console.log("resolveServerConfig Contractinteractor created")
   await contractInteractor._resolveDeployment()
+  console.log("resolveServerConfig resolvedeployment")
   await contractInteractor._initializeContracts()
+  console.log("resolveServerConfig initializecontracts")
   await contractInteractor._initializeNetworkParams()
 
   if (config.relayHubAddress == null) {
     error('missing param: must have relayHubAddress')
   }
-  if (config.url == null) error('missing param: url')
-  if (config.workdir == null) error('missing param: workdir')
+//  if (config.url == null) error('missing param: url')
+//  if (config.workdir == null) error('missing param: workdir')
   if (config.ownerAddress == null || config.ownerAddress === constants.ZERO_ADDRESS) error('missing param: ownerAddress')
   if (config.managerStakeTokenAddress == null || config.managerStakeTokenAddress === constants.ZERO_ADDRESS) error('missing param: managerStakeTokenAddress')
   const finalConfig = { ...serverDefaultConfiguration, ...config }
+  console.log("resolveServerConfig finalConfig: ", finalConfig)
   validatePrivateModeParams(finalConfig)
   validateBalanceParams(finalConfig)
   return {

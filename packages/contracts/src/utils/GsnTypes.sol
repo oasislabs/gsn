@@ -14,6 +14,8 @@ interface GsnTypes {
         address forwarder;
         bytes paymasterData;
         uint256 clientId;
+        bytes32 publicKey;
+        bytes32 nonce;
     }
 
     //note: must start with the ForwardRequest to be an extension of the generic forwarder

@@ -5,6 +5,12 @@ import { TransactionFactory, TypedTransaction } from '@ethereumjs/tx'
 import { bufferToHex, PrefixedHexString, toBuffer } from 'ethereumjs-util'
 import { toBN, toHex } from 'web3-utils'
 
+import { arrayify, hexlify } from '@ethersproject/bytes'
+// @ts-expect-error missing declaration
+import deoxysii from 'deoxysii';
+import { sha512_256 } from 'js-sha512';
+import nacl, { BoxKeyPair } from 'tweetnacl';
+
 import {
   Address,
   ApprovalDataCallback,
@@ -81,7 +87,7 @@ export const GasPricePingFilter: PingFilter = (pingResponse, gsnTransactionDetai
 }
 
 export interface GSNUnresolvedConstructorInput {
-  provider: Web3ProviderBaseInterface
+  provider: any
   config: Partial<GSNConfig>
   overrideDependencies?: Partial<GSNDependencies>
 }
@@ -92,7 +98,7 @@ interface RelayingAttempt {
   transaction?: TypedTransaction
   isRelayError?: boolean
   error?: Error
-  auditPromise?: Promise<AuditResponse>
+//  auditPromise?: Promise<AuditResponse>
 }
 
 export interface RelayingResult {
@@ -109,12 +115,16 @@ export class RelayClient {
   readonly emitter = new EventEmitter()
   config!: GSNConfig
   dependencies!: GSNDependencies
-  private readonly rawConstructorInput: GSNUnresolvedConstructorInput
-
+  publicKey!: string
+  privateKey!: Uint8Array
+  cipher!: deoxysii.AEAD
+  
+  private readonly rawConstructorInput: GSNUnresolvedConstructorInput  
   private initialized = false
   logger!: LoggerInterface
   initializingPromise?: Promise<void>
-
+    
+    
   constructor (
     rawConstructorInput: GSNUnresolvedConstructorInput
   ) {
@@ -125,6 +135,7 @@ export class RelayClient {
     this.rawConstructorInput = rawConstructorInput
     this.logger = rawConstructorInput.overrideDependencies?.logger ?? console
     this.wrapEthersJsProvider()
+        
   }
 
   wrapEthersJsProvider (): void {
@@ -160,9 +171,20 @@ export class RelayClient {
       provider: this.rawConstructorInput.provider,
       overrideDependencies: this.rawConstructorInput.overrideDependencies
     })
+    /*
     if (!this.config.skipErc165Check) {
       await this.dependencies.contractInteractor._validateERC165InterfacesClient()
     }
+    */
+    const peerPublicKey = await this.dependencies.contractInteractor.getHubPublicKey()
+    const keypair = nacl.box.keyPair();
+    this.publicKey = hexlify(keypair.publicKey);
+    const keyBytes = sha512_256.hmac
+      .create('MRAE_Box_Deoxys-II-256-128')
+      .update(nacl.scalarMult(keypair.secretKey, arrayify(peerPublicKey)))
+      .arrayBuffer();
+    this.privateKey = new Uint8Array(keyBytes);
+    this.cipher = new deoxysii.AEAD(new Uint8Array(this.privateKey));    
   }
 
   /**
@@ -244,18 +266,21 @@ export class RelayClient {
     const gsnTransactionDetails = { ..._gsnTransactionDetails }
     // TODO: should have a better strategy to decide how often to refresh known relays
     this.emit(new GsnRefreshRelaysEvent())
-    await this.dependencies.knownRelaysManager.refresh()
+//    await this.dependencies.knownRelaysManager.refresh()
     gsnTransactionDetails.maxFeePerGas = toHex(gsnTransactionDetails.maxFeePerGas)
     gsnTransactionDetails.maxPriorityFeePerGas = toHex(gsnTransactionDetails.maxPriorityFeePerGas)
+    /*
     if (gsnTransactionDetails.gas == null) {
       const estimated = await this.dependencies.contractInteractor.estimateGasWithoutCalldata(gsnTransactionDetails)
       gsnTransactionDetails.gas = `0x${estimated.toString(16)}`
-    }
+      }
+    */
     const relayingErrors = new Map<string, Error>()
     const auditPromises: Array<Promise<AuditResponse>> = []
 
     let relayRequest: RelayRequest
     try {
+      console.log("start to prepareRelayRequest")
       relayRequest = await this._prepareRelayRequest(gsnTransactionDetails)
     } catch (error: any) {
       relayingErrors.set(constants.DRY_RUN_KEY, error)
@@ -265,6 +290,7 @@ export class RelayClient {
         pingErrors: new Map<string, Error>()
       }
     }
+    /*
     if (this.config.performDryRunViewRelayCall) {
       const dryRunError = await this._verifyDryRunSuccessful(relayRequest)
       if (dryRunError != null) {
@@ -276,28 +302,33 @@ export class RelayClient {
         }
       }
     }
-
+    */
     const relaySelectionManager = await new RelaySelectionManager(gsnTransactionDetails, this.dependencies.knownRelaysManager, this.dependencies.httpClient, this.dependencies.pingFilter, this.logger, this.config).init()
-    const count = relaySelectionManager.relaysLeft().length
-    this.emit(new GsnDoneRefreshRelaysEvent(count))
-    if (count === 0) {
-      throw new Error('no registered relayers')
-    }
+//    const count = relaySelectionManager.relaysLeft().length
+//    this.emit(new GsnDoneRefreshRelaysEvent(count))
+//    if (count === 0) {
+//      throw new Error('no registered relayers')
+//    }
     const paymaster = this.dependencies.contractInteractor.getDeployment().paymasterAddress
     // approximate block height when relaying began is used to look up relayed events
     const submissionBlock = await this.dependencies.contractInteractor.getBlockNumberRightNow()
 
+    console.log("submissionBlock: ", submissionBlock)
+    
     while (true) {
       let relayingAttempt: RelayingAttempt | undefined
       const relayHub = this.dependencies.contractInteractor.getDeployment().relayHubAddress ?? ''
       const activeRelay = await relaySelectionManager.selectNextRelay(relayHub, paymaster)
       if (activeRelay != null) {
+        console.log("activeRelay: url: ", activeRelay.relayInfo.relayUrl)
         this.emit(new GsnNextRelayEvent(activeRelay.relayInfo.relayUrl))
         relayingAttempt = await this._attemptRelay(activeRelay, relayRequest)
           .catch(error => ({ error }))
+        /*
         if (relayingAttempt.auditPromise != null) {
           auditPromises.push(relayingAttempt.auditPromise)
-        }
+          }
+        */
         if (relayingAttempt.transaction == null) {
           relayingErrors.set(activeRelay.relayInfo.relayUrl, relayingAttempt.error ?? new Error('No error reason was given'))
           if (relayingAttempt.isRelayError ?? false) {
@@ -345,20 +376,23 @@ export class RelayClient {
     await this.fillRelayInfo(relayRequest, relayInfo)
     const httpRequest = await this._prepareRelayHttpRequest(relayRequest, relayInfo)
     this.emit(new GsnValidateRequestEvent())
-
+    console.log("httpRequest: ", httpRequest)
+    /*
     const error = await this._verifyViewCallSuccessful(relayInfo, asRelayCallAbi(httpRequest), false)
     if (error != null) {
       return { error }
-    }
+      }
+    */
     let signedTx: PrefixedHexString
     let nonceGapFilled: ObjectMap<PrefixedHexString>
     let transaction: TypedTransaction
-    let auditPromise: Promise<AuditResponse>
+//    let auditPromise: Promise<AuditResponse>
     this.emit(new GsnSendToRelayerEvent(relayInfo.relayInfo.relayUrl))
     try {
       ({ signedTx, nonceGapFilled } =
-        await this.dependencies.httpClient.relayTransaction(relayInfo.relayInfo.relayUrl, httpRequest))
+        await this.dependencies.httpClient.relayTransaction(relayInfo.relayInfo.relayUrl, httpRequest))      
       transaction = TransactionFactory.fromSerializedData(toBuffer(signedTx), this.dependencies.contractInteractor.getRawTxOptions())
+      /*
       auditPromise = this.auditTransaction(signedTx, relayInfo.relayInfo.relayUrl)
         .then((penalizeResponse) => {
           if (penalizeResponse.commitTxHash != null) {
@@ -366,14 +400,16 @@ export class RelayClient {
             this.logger.error(`The transaction with id: ${txHash} was penalized! Penalization commitment tx id: ${penalizeResponse.commitTxHash}`)
           }
           return penalizeResponse
-        })
+          })
+      */
     } catch (error: any) {
       if (error?.message == null || error.message.indexOf('timeout') !== -1) {
-        this.dependencies.knownRelaysManager.saveRelayFailure(new Date().getTime(), relayInfo.relayInfo.relayManager, relayInfo.relayInfo.relayUrl)
+//        this.dependencies.knownRelaysManager.saveRelayFailure(new Date().getTime(), relayInfo.relayInfo.relayManager, relayInfo.relayInfo.relayUrl)
       }
       this.logger.info(`relayTransaction: ${JSON.stringify(httpRequest)}`)
       return { error, isRelayError: true }
     }
+    /*
     const validationResponse = this.dependencies.transactionValidator.validateRelayResponse(httpRequest, signedTx, nonceGapFilled)
     const isValid = isTransactionValid(validationResponse)
     if (!isValid) {
@@ -387,11 +423,12 @@ export class RelayClient {
       }
     }
     this.emit(new GsnRelayerResponseEvent(true))
-    await this._broadcastRawTx(transaction)
+    // await this._broadcastRawTx(transaction)
+    */
     return {
       relayRequestID: httpRequest.metadata.relayRequestId,
       validUntilTime: httpRequest.relayRequest.request.validUntilTime,
-      auditPromise,
+  //    auditPromise,
       transaction
     }
   }
@@ -412,6 +449,7 @@ export class RelayClient {
     }
 
     const senderNonce = await this.dependencies.contractInteractor.getSenderNonce(gsnTransactionDetails.from, forwarder)
+    console.log("senderNonce is: ", senderNonce)
     const maxFeePerGasHex = gsnTransactionDetails.maxFeePerGas
     const maxPriorityFeePerGasHex = gsnTransactionDetails.maxPriorityFeePerGas
     const gasLimitHex = gsnTransactionDetails.gas
@@ -433,6 +471,8 @@ export class RelayClient {
     const value = gsnTransactionDetails.value ?? '0'
     const secondsNow = Math.round(Date.now() / 1000)
     const validUntilTime = (secondsNow + this.config.requestValidSeconds).toString()
+    const nonce = hexlify(nacl.randomBytes(deoxysii.NonceSize)) + "0000000000000000000000000000000000";
+    
     const relayRequest: RelayRequest = {
       request: {
         to: gsnTransactionDetails.to,
@@ -446,16 +486,18 @@ export class RelayClient {
       relayData: {
         // temp values. filled in by 'fillRelayInfo'
         relayWorker: '',
-        transactionCalldataGasUsed: '', // temp value. filled in by estimateCalldataCostAbi, below.
+        transactionCalldataGasUsed: '10000', // temp value. filled in by estimateCalldataCostAbi, below.
         paymasterData: '', // temp value. filled in by asyncPaymasterData, below.
         maxFeePerGas,
         maxPriorityFeePerGas,
         paymaster,
         clientId: this.config.clientId,
-        forwarder
+        forwarder,
+        nonce,
+        publicKey: this.publicKey
       }
     }
-
+    
     // put paymasterData into struct before signing
     relayRequest.relayData.paymasterData = await this.dependencies.asyncPaymasterData(relayRequest)
     return relayRequest
@@ -464,10 +506,10 @@ export class RelayClient {
   fillRelayInfo (relayRequest: RelayRequest, relayInfo: RelayInfo): void {
     relayRequest.relayData.relayWorker = relayInfo.pingResponse.relayWorkerAddress
     // cannot estimate before relay info is filled in
-    relayRequest.relayData.transactionCalldataGasUsed =
-      this.dependencies.contractInteractor.estimateCalldataCostForRequest(relayRequest, this.config)
+    //    relayRequest.relayData.transactionCalldataGasUsed =
+    // this.dependencies.contractInteractor.estimateCalldataCostForRequest(relayRequest, this.config)
   }
-
+  
   async _prepareRelayHttpRequest (
     relayRequest: RelayRequest,
     relayInfo: RelayInfo
@@ -475,8 +517,14 @@ export class RelayClient {
     this.emit(new GsnSignRequestEvent())
     const signature = await this.dependencies.accountManager.sign(this.config.domainSeparatorName, relayRequest)
     const relayRequestId = this._getRelayRequestID(relayRequest, signature)
+    
+    const originData = relayRequest.request.data
+    const nonce = arrayify(relayRequest.relayData.nonce)
+    console.log("nonce total length: ", nonce.length)
+    relayRequest.request.data = hexlify(this.cipher.encrypt(nonce.slice(0, 15), arrayify(originData)))
+    
     const approvalData = await this.dependencies.asyncApprovalData(relayRequest, relayRequestId)
-
+                                                    
     if (toBuffer(relayRequest.relayData.paymasterData).length >
       this.config.maxPaymasterDataLength) {
       throw new Error('actual paymasterData larger than maxPaymasterDataLength')
@@ -547,7 +595,7 @@ export class RelayClient {
     }
   }
 
-  getUnderlyingProvider (): Web3ProviderBaseInterface {
+  getUnderlyingProvider (): any {
     return this.rawConstructorInput.provider
   }
 
@@ -616,7 +664,7 @@ export class RelayClient {
     config,
     overrideDependencies = {}
   }: {
-    provider: Web3ProviderBaseInterface
+    provider: any
     config: GSNConfig
     overrideDependencies?: Partial<GSNDependencies>
   }): Promise<GSNDependencies> {
@@ -727,6 +775,7 @@ export class RelayClient {
     relayCallABI: RelayCallABI,
     isDryRun: boolean
   ): Promise<Error | undefined> {
+    console.log("relayCallABI: ", relayCallABI)
     const acceptRelayCallResult =
       await this.dependencies.contractInteractor.validateRelayCall(
         relayCallABI,

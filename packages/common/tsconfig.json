@@ -7,7 +7,10 @@
     "../contracts/types/truffle-contracts/types.d.ts"
   ],
   "compilerOptions": {
-    "rootDir": "src",
-    "outDir": "dist"
+      "rootDir": "src",
+      "outDir": "dist",
+      "lib": [
+          "es2019", "dom"
+      ]
   }
 }

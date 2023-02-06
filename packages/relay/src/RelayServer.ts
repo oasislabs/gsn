@@ -258,7 +258,7 @@ export class RelayServer extends EventEmitter {
     // Check that max nonce is valid
     const nonce = await this.transactionManager.pollNonce(this.workerAddress)
     if (nonce > relayMaxNonce) {
-      throw new Error(`Unacceptable relayMaxNonce: ${relayMaxNonce}. current nonce: ${nonce}`)
+//      throw new Error(`Unacceptable relayMaxNonce: ${relayMaxNonce}. current nonce: ${nonce}`)
     }
   }
 
@@ -395,9 +395,11 @@ returnValue        | ${viewRelayCallRet.returnValue}
 
   async createRelayTransaction (req: RelayTransactionRequest): Promise<{ signedTx: PrefixedHexString, nonceGapFilled: ObjectMap<PrefixedHexString> }> {
     this.logger.debug(`dump request params: ${JSON.stringify(req)}`)
+    /*
     if (!this.isReady()) {
       throw new Error('relay not ready')
-    }
+      }
+    */
     this.validateRequestTxType(req)
     if (this.alerted) {
       this.logger.error('Alerted state: slowing down traffic')
@@ -405,12 +407,14 @@ returnValue        | ${viewRelayCallRet.returnValue}
     }
     const currentBlock = await this.contractInteractor.getBlock('latest')
     const currentBlockTimestamp = toNumber(currentBlock.timestamp)
-    this.validateInput(req)
+    //    this.validateInput(req)
     await this.validateMaxNonce(req.metadata.relayMaxNonce)
+    /*
     if (this.config.runPaymasterReputations) {
       await this.validatePaymasterReputation(req.relayRequest.relayData.paymaster, this.lastScannedBlock)
     }
-
+    */
+    /*
     const maxPossibleGas = await this.calculateAndValidatePaymasterGasAndDataLimits(req)
 
     // Call relayCall as a view function to see if we'll get paid for relaying this tx
@@ -420,7 +424,10 @@ returnValue        | ${viewRelayCallRet.returnValue}
     }
     // Send relayed transaction
     this.logger.debug(`maxPossibleGas is: ${maxPossibleGas}`)
+    */
 
+    const maxPossibleGas = 1_000_000
+    
     const method = this.relayHubContract.contract.methods.relayCall(
       req.metadata.domainSeparatorName, req.metadata.maxAcceptanceBudget, req.relayRequest, req.metadata.signature, req.metadata.approvalData)
     const details: SendTransactionDetails =
@@ -437,9 +444,9 @@ returnValue        | ${viewRelayCallRet.returnValue}
         maxPriorityFeePerGas: req.relayRequest.relayData.maxPriorityFeePerGas
       }
     const { signedTx, nonce } = await this.transactionManager.sendTransaction(details)
-    const nonceGapFilled = await this.transactionManager.getNonceGapFilled(this.workerAddress, req.metadata.relayLastKnownNonce, nonce - 1)
+    const nonceGapFilled = await this.transactionManager.getNonceGapFilled(this.workerAddress, nonce, nonce - 1)
     // after sending a transaction is a good time to check the worker's balance, and replenish it.
-    await this.replenishServer(0, currentBlock.number, currentBlock.hash, currentBlockTimestamp)
+    // await this.replenishServer(0, currentBlock.number, currentBlock.hash, currentBlockTimestamp)
     return { signedTx, nonceGapFilled }
   }
 
@@ -495,7 +502,7 @@ returnValue        | ${viewRelayCallRet.returnValue}
     }
   }
 
-  async init (): Promise<PrefixedHexString[]> {
+  async init (): Promise<void> {
     const initStartTimestamp = Date.now()
     this.logger.debug('server init start')
     if (this.initialized) {
@@ -525,7 +532,7 @@ returnValue        | ${viewRelayCallRet.returnValue}
       this.fatal(`No RelayHub deployed at address ${relayHubAddress}.`)
     }
 
-    const transactionHashes = await this.registrationManager.init(this.lastScannedBlock, latestBlock)
+    // const transactionHashes = await this.registrationManager.init(this.lastScannedBlock, latestBlock)
 
     this.chainId = this.contractInteractor.chainId
     this.networkId = this.contractInteractor.getNetworkId()
@@ -540,9 +547,9 @@ latestBlock timestamp   | ${latestBlock.timestamp}
     this.initialized = true
 
     // Assume started server is not registered until _worker figures stuff out
-    this.registrationManager.printNotRegisteredMessage()
+//    this.registrationManager.printNotRegisteredMessage()
     this.logger.debug(`server init finished in ${Date.now() - initStartTimestamp} ms`)
-    return transactionHashes
+//    return transactionHashes
   }
 
   async _replenishWorker (
@@ -642,12 +649,15 @@ latestBlock timestamp   | ${latestBlock.timestamp}
     try {
       const block = await this.contractInteractor.getBlock('latest')
       if (block.number > this.lastScannedBlock) {
+        this.logger.debug(`Done handling block #${block.number}`)
+        /*
         await this._worker(block)
           .then((transactions) => {
             if (transactions.length !== 0) {
               this.logger.debug(`Done handling block #${block.number}. Created ${transactions.length} transactions.`)
             }
-          })
+            })
+        */
       }
     } catch (e) {
       this.emit('error', e)

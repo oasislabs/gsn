@@ -293,6 +293,7 @@ export class RegistrationManager {
     const transactionHashes: string[] = []
     const stakeInfo = await this.contractInteractor.getStakeInfo(this.managerAddress)
     const stakedOnHubStatus = await this.contractInteractor.isRelayManagerStakedOnHub(this.managerAddress)
+    console.log(" >>>> refresh Stake: ", stakedOnHubStatus);
     if (stakedOnHubStatus.isStaked) {
       this.isHubAuthorized = true
     } else if (stakedOnHubStatus.errorMessage === 'this hub is not authorized by SM') {

@@ -32,6 +32,8 @@ import { GasPriceFetcher } from './GasPriceFetcher'
 import { ReputationManager, ReputationManagerConfiguration } from './ReputationManager'
 import { REPUTATION_STORE_FILENAME, ReputationStoreManager } from './ReputationStoreManager'
 
+import * as sapphire from '@oasisprotocol/sapphire-paratime';
+
 function error (err: string): never {
   console.error(err)
   process.exit(1)
@@ -75,7 +77,9 @@ async function run (): Promise<void> {
     }
     const loggingProvider: LoggingProviderMode = conf.loggingProvider ?? LoggingProviderMode.NONE
     conf.environmentName = conf.environmentName ?? EnvironmentsKeys.ganacheLocal
-    web3provider = new Web3.providers.HttpProvider(conf.ethereumNodeUrl)
+    web3provider = sapphire.wrap(conf.ethereumNodeUrl)
+      // web3provider = new Web3.providers.HttpProvider(conf.ethereumNodeUrl)
+    /*
     if (loggingProvider !== LoggingProviderMode.NONE) {
       const orig = web3provider
       web3provider = {
@@ -118,6 +122,8 @@ async function run (): Promise<void> {
         }
       }
     }
+    */
+    
     console.log('Resolving server config ...\n');
     ({ config, environment } = await resolveServerConfig(conf, web3provider))
     runPenalizer = config.runPenalizer

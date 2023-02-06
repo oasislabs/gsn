@@ -209,7 +209,7 @@ interface IRelayHub is IERC165 {
     function relayCall(
         string calldata domainSeparatorName,
         uint256 maxAcceptanceBudget,
-        GsnTypes.RelayRequest calldata relayRequest,
+        GsnTypes.RelayRequest memory relayRequest,
         bytes calldata signature,
         bytes calldata approvalData
     )
@@ -333,6 +333,9 @@ interface IRelayHub is IERC165 {
     /// @return The block number in which the contract has been deployed.
     function getCreationBlock() external view returns (uint256);
 
+    /// @return the public key of relay hub
+    function getPublicKey() external view returns (bytes32);
+    
     /// @return a SemVer-compliant version of the `RelayHub` contract.
     function versionHub() external view returns (string memory);
 

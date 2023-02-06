@@ -121,11 +121,11 @@ export async function setField (deployments: DeploymentsExtension, contract: str
     from: deployer,
     log: true
   }
-  const currentVal = await deployments.read(contract, options, getFunc)
-  if (currentVal.toString() !== val) {
+//  const currentVal = await deployments.read(contract, options, getFunc)
+//  if (currentVal.toString() !== val) {
     console.log('calling', `${contract}.${setFunc}( ${val} )`)
     await deployments.execute(contract, options, setFunc, val)
-  }
+//  }
 }
 
 async function getStakingInfo (hre: HardhatRuntimeEnvironment, env: Environment): Promise<{ stakingTokenAddress: string, stakingTokenValue: string }> {
@@ -242,6 +242,7 @@ async function applyHubConfiguration (env: Environment, hub: Contract): Promise<
 }
 
 export async function applyDeploymentConfig (hre: HardhatRuntimeEnvironment): Promise<void> {
+  console.log("applyDeploymentConfig");
   const { deployments, env, deployer } = await getDeploymentEnv(hre)
 
   const contracts = await deployments.all()
@@ -252,10 +253,11 @@ export async function applyDeploymentConfig (hre: HardhatRuntimeEnvironment): Pr
   await applyStakingTokenConfiguration(hre, env, hub)
 
   const { devAddress: stakeManagerDevAddress } = await deployments.read('StakeManager', 'getAbandonedRelayServerConfig')
-  if (!isSameAddress(stakeManagerDevAddress, env.relayHubConfiguration.devAddress)) {
-    console.log('StakeManager: update devAddress')
-    await deployments.execute('StakeManager', { from: deployer }, 'setDevAddress', env.relayHubConfiguration.devAddress)
-  }
+  console.log("env.relayHubConfiguration.devAddress: ", env.relayHubConfiguration.devAddress)
+//  if (!isSameAddress(stakeManagerDevAddress, env.relayHubConfiguration.devAddress)) {
+  console.log('StakeManager: update devAddress')
+  await deployments.execute('StakeManager', { from: deployer }, 'setDevAddress', env.relayHubConfiguration.devAddress)
+  //  }
 
   if (env.deploymentConfiguration == null) {
     throw new Error('deploymentConfiguration is null')

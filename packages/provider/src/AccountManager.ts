@@ -41,7 +41,7 @@ export class AccountManager {
   private readonly config: GSNConfig
   readonly chainId: number
 
-  constructor (provider: Web3ProviderBaseInterface, chainId: number, config: GSNConfig) {
+  constructor (provider: any, chainId: number, config: GSNConfig) {
     this.web3 = new Web3(provider as any)
     this.chainId = chainId
     this.config = config

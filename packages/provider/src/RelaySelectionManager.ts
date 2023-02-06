@@ -9,10 +9,13 @@ import {
   RelayInfo,
   RelayInfoUrl,
   WaitForSuccessResults,
+  constants,
   isInfoFromEvent,
   isSameAddress,
   waitForSuccess
 } from '@opengsn/common'
+
+import { toBN, toHex } from 'web3-utils'
 
 import { GSNConfig } from './GSNConfigurator'
 import { KnownRelaysManager } from './KnownRelaysManager'
@@ -44,6 +47,32 @@ export class RelaySelectionManager {
    * @returns the first relay to respond to a ping message. Note: will never return the same relay twice.
    */
   async selectNextRelay (relayHub: Address, paymaster?: Address): Promise<RelayInfo | undefined> {
+    const relayInfo: RelayInfo = {
+      relayInfo: {
+        lastSeenTimestamp: toBN(0),
+        lastSeenBlockNumber: toBN(0),
+        firstSeenTimestamp: toBN(0),
+        firstSeenBlockNumber: toBN(0),
+        relayManager: '0x4d994bd194b0ba128c14aa2019302db647ba00f4a054abf229cdb0c82a4f6aed',
+        relayUrl: 'http://localhost:8090'
+      },
+      pingResponse: {
+        relayWorkerAddress: constants.DRY_RUN_ADDRESS,
+        relayManagerAddress: constants.ZERO_ADDRESS,
+        relayHubAddress: constants.ZERO_ADDRESS,
+        ownerAddress: constants.ZERO_ADDRESS,
+        maxMaxFeePerGas: '0',
+        minMaxFeePerGas: '0',
+        minMaxPriorityFeePerGas: '0',
+        maxAcceptanceBudget: '0',
+        ready: true,
+        version: ''
+      }
+    }
+
+    return relayInfo
+    /*
+
     while (true) {
       const slice = this._getNextSlice()
       let relayInfo: RelayInfo | undefined
@@ -54,7 +83,9 @@ export class RelaySelectionManager {
         }
       }
       return relayInfo
-    }
+      }
+
+    */
   }
 
   async _nextRelayInternal (relays: RelayInfoUrl[], relayHub: Address, paymaster?: Address): Promise<RelayInfo | undefined> {
@@ -86,7 +117,7 @@ export class RelaySelectionManager {
   }
 
   async init (): Promise<this> {
-    this.remainingRelays = await this.knownRelaysManager.getRelaysShuffledForTransaction()
+//    this.remainingRelays = await this.knownRelaysManager.getRelaysShuffledForTransaction()
     this.isInitialized = true
     return this
   }

@@ -10,7 +10,7 @@ contract TestRelayHubValidator {
     function dummyRelayCall(
         string calldata domainSeparatorName,
         uint256, //paymasterMaxAcceptanceBudget,
-        GsnTypes.RelayRequest calldata relayRequest,
+        GsnTypes.RelayRequest memory relayRequest,
         bytes calldata signature,
         bytes calldata approvalData
     ) external {
@@ -18,7 +18,7 @@ contract TestRelayHubValidator {
     }
 
     // helper method for verifyTransactionPacking
-    function dynamicParamSize(bytes calldata buf) external pure returns (uint256) {
+    function dynamicParamSize(bytes memory buf) external pure returns (uint256) {
         return RelayHubValidator.dynamicParamSize(buf);
     }
 }

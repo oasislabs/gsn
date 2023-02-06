@@ -5,6 +5,7 @@ import '@nomiclabs/hardhat-web3'
 import 'hardhat-deploy'
 import '@nomiclabs/hardhat-ethers'
 import '@nomiclabs/hardhat-etherscan'
+import '@oasisprotocol/sapphire-hardhat';
 
 import fs from 'fs'
 import { HardhatUserConfig } from 'hardhat/config'
@@ -39,6 +40,7 @@ function getInfuraNetwork (name: string): NetworkUserConfig {
   return getNetwork(infuraUrl(name))
 }
 
+
 const CONTRACTS_LINK = 'contracts-link'
 
 if (!fs.existsSync(path.join(CONTRACTS_LINK, 'RelayHub.sol'))) {
@@ -72,7 +74,11 @@ const config: HardhatUserConfig = {
       url: 'http://127.0.0.1:8544',
       saveDeployments: false
     },
-
+    sapphire: {
+      url: 'https://testnet.sapphire.oasis.dev',
+      accounts: ['47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a'],
+      chainId: 0x5aff
+    },
     dev: getNetwork('http://localhost:8545'),
     bsctestnet: getNetwork('https://bsc-testnet.public.blastapi.io'),
     rarb: getNetwork('https://rinkeby.arbitrum.io/rpc'),

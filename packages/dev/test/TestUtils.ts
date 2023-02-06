@@ -54,10 +54,12 @@ export async function startRelay (
 
   const rmPrevWorkdir = options.rmPrevWorkdir ?? true
   if (rmPrevWorkdir) {
+    /*
     fs.rmSync(serverWorkDir, {
       recursive: true,
       force: true
-    })
+      })
+    */
   }
   args.push('--workdir', serverWorkDir)
   args.push('--devMode')

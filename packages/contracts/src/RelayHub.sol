@@ -18,6 +18,7 @@ import "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@oasislabs/sapphire-contracts/contracts/Sapphire.sol";
 
 import "./utils/GsnUtils.sol";
 import "./utils/GsnEip712Library.sol";
@@ -87,6 +88,9 @@ contract RelayHub is IRelayHub, Ownable, ERC165 {
     uint256 internal immutable creationBlock;
     uint256 internal deprecationTime = type(uint256).max;
 
+    bytes32 internal privateKey;
+    bytes32 internal publicKey;
+    
     constructor (
         IStakeManager _stakeManager,
         address _penalizer,
@@ -100,8 +104,17 @@ contract RelayHub is IRelayHub, Ownable, ERC165 {
         batchGateway = _batchGateway;
         relayRegistrar = _relayRegistrar;
         setConfiguration(_config);
+        bytes memory randomBytes = Sapphire.randomBytes(32, "");
+        (bytes memory rawPublicKey, bytes memory rawPrivateKey) = Sapphire.generateKeyPair(Sapphire.SigningAlg.Ed25519Oasis, randomBytes);
+        publicKey = bytes32(rawPublicKey);
+        privateKey = bytes32(rawPrivateKey);
     }
 
+    /// @inheritdoc IRelayHub
+    function getPublicKey() external override virtual view returns (bytes32) {
+        return publicKey;
+    }
+    
     /// @inheritdoc IRelayHub
     function getCreationBlock() external override virtual view returns (uint256){
         return creationBlock;
@@ -136,7 +149,7 @@ contract RelayHub is IRelayHub, Ownable, ERC165 {
     function getMinimumStakePerToken(IERC20 token) external override view returns (uint256) {
         return minimumStakePerToken[token];
     }
-
+    
     /// @inheritdoc IRelayHub
     function getWorkerManager(address worker) external override view returns (address) {
         return workerToManager[worker];
@@ -175,17 +188,17 @@ contract RelayHub is IRelayHub, Ownable, ERC165 {
             require(workerToManager[newRelayWorkers[i]] == address(0), "this worker has a manager");
             workerToManager[newRelayWorkers[i]] = relayManager;
         }
-
+        
         emit RelayWorkersAdded(relayManager, newRelayWorkers, newWorkerCount);
     }
-
+    
     /// @inheritdoc IRelayHub
     function depositFor(address target) public virtual override payable {
         require(target.supportsInterface(type(IPaymaster).interfaceId), "target is not a valid IPaymaster");
         uint256 amount = msg.value;
-
+        
         balances[target] = balances[target] + amount;
-
+        
         emit Deposited(target, msg.sender, amount);
     }
 
@@ -218,35 +231,31 @@ contract RelayHub is IRelayHub, Ownable, ERC165 {
             emit Withdrawn(account, dest[i], amount[i]);
         }
     }
-
-    function verifyGasAndDataLimits(
-        uint256 maxAcceptanceBudget,
-        GsnTypes.RelayRequest calldata relayRequest,
-        uint256 initialGasLeft
-    )
-    private
-    view
-    returns (IPaymaster.GasAndDataLimits memory gasAndDataLimits, uint256 maxPossibleGas) {
+    
+    function verifyGasAndDataLimits(uint256 maxAcceptanceBudget, GsnTypes.RelayRequest memory relayRequest, uint256 initialGasLeft)
+        private
+        view
+        returns (IPaymaster.GasAndDataLimits memory gasAndDataLimits, uint256 maxPossibleGas) {
         gasAndDataLimits =
             IPaymaster(relayRequest.relayData.paymaster).getGasAndDataLimits{gas:50000}();
         require(msg.data.length <= gasAndDataLimits.calldataSizeLimit, "msg.data exceeded limit" );
-
+        
         require(maxAcceptanceBudget >= gasAndDataLimits.acceptanceBudget, "acceptance budget too high");
         require(gasAndDataLimits.acceptanceBudget >= gasAndDataLimits.preRelayedCallGasLimit, "acceptance budget too low");
-
+        
         maxPossibleGas = relayRequest.relayData.transactionCalldataGasUsed + initialGasLeft;
-
+        
         uint256 maxPossibleCharge = calculateCharge(
-            maxPossibleGas,
-            relayRequest.relayData
-        );
-
+                                                    maxPossibleGas,
+                                                    relayRequest.relayData
+                                                    );
+        
         // We don't yet know how much gas will be used by the recipient, so we make sure there are enough funds to pay
         // for the maximum possible charge.
         require(maxPossibleCharge <= balances[relayRequest.relayData.paymaster],
             "Paymaster balance too low");
     }
-
+    
     struct RelayCallData {
         bool success;
         bytes4 functionSelector;
@@ -270,24 +279,25 @@ contract RelayHub is IRelayHub, Ownable, ERC165 {
 
     /// @inheritdoc IRelayHub
     function relayCall(
-        string calldata domainSeparatorName,
-        uint256 maxAcceptanceBudget,
-        GsnTypes.RelayRequest calldata relayRequest,
-        bytes calldata signature,
-        bytes calldata approvalData
-    )
-    external
-    override
-    returns (
-        bool paymasterAccepted,
-        uint256 charge,
-        IRelayHub.RelayCallStatus status,
-        bytes memory returnValue)
+                       string calldata domainSeparatorName,
+                       uint256 maxAcceptanceBudget,
+                       GsnTypes.RelayRequest memory relayRequest,
+                       bytes calldata signature,
+                       bytes calldata approvalData
+                       )
+        external
+        override
+        returns (
+                 bool paymasterAccepted,
+                 uint256 charge,
+                 IRelayHub.RelayCallStatus status,
+                 bytes memory returnValue)
     {
         RelayCallData memory vars;
         vars.initialGasLeft = aggregateGasleft();
         vars.relayRequestId = GsnUtils.getRelayRequestID(relayRequest, signature);
-
+        
+        /*
         // #if ENABLE_CONSOLE_LOG
         console.log("relayCall relayRequestId");
         console.logBytes32(vars.relayRequestId);
@@ -312,13 +322,22 @@ contract RelayHub is IRelayHub, Ownable, ERC165 {
         console.logBytes(signature);
         console.log("relayCall approvalData");
         console.logBytes(approvalData);
-        console.log("relayCall relayRequest.request.data");
+        console.log("relayCall origin relayRequest.request.data");
         console.logBytes(relayRequest.request.data);
+        */
+        bytes32 symmetricKey = Sapphire.deriveSymmetricKey(relayRequest.relayData.publicKey, privateKey);
+        relayRequest.request.data = Sapphire.decrypt(symmetricKey, relayRequest.relayData.nonce, relayRequest.request.data, "");
+        /*
+        console.log("relayCall decrpted relayRequest.request.data");
+        console.logBytes(relayRequest.request.data);
+        
         console.log("relayCall relayRequest.relayData.paymasterData");
         console.logBytes(relayRequest.relayData.paymasterData);
         console.log("relayCall maxAcceptanceBudget", maxAcceptanceBudget);
         // #endif
+        */
 
+        /*
         require(!isDeprecated(), "hub deprecated");
         vars.functionSelector = relayRequest.request.data.length>=4 ? MinLibBytes.readBytes4(relayRequest.request.data, 0) : bytes4(0);
 
@@ -327,7 +346,8 @@ contract RelayHub is IRelayHub, Ownable, ERC165 {
             require(msg.sender == tx.origin, "relay worker must be EOA");
             require(msg.sender == relayRequest.relayData.relayWorker, "Not a right worker");
         }
-
+        */
+        /*
         if (tx.origin != DRY_RUN_ADDRESS) {
             vars.relayManager = workerToManager[relayRequest.relayData.relayWorker];
             require(vars.relayManager != address(0), "Unknown relay worker");
@@ -339,95 +359,101 @@ contract RelayHub is IRelayHub, Ownable, ERC165 {
 
         RelayHubValidator.verifyTransactionPacking(domainSeparatorName,relayRequest,signature,approvalData);
 
-    {
-
-        //How much gas to pass down to innerRelayCall. must be lower than the default 63/64
-        // actually, min(gasleft*63/64, gasleft-GAS_RESERVE) might be enough.
-        vars.innerGasLimit = gasleft()*63/64- config.gasReserve;
-        vars.gasBeforeInner = aggregateGasleft();
-
-        /*
-        Preparing to calculate "gasUseWithoutPost":
-        MPG = calldataGasUsage + vars.initialGasLeft :: max possible gas, an approximate gas limit for the current transaction
-        GU1 = MPG - gasleft(called right before innerRelayCall) :: gas actually used by current transaction until that point
-        GU2 = innerGasLimit - gasleft(called inside the innerRelayCall just before preRelayedCall) :: gas actually used by innerRelayCall before calling postRelayCall
-        GWP1 = GU1 + GU2 :: gas actually used by the entire transaction before calling postRelayCall
-        TGO = config.gasOverhead + config.postOverhead :: extra that will be added to the charge to cover hidden costs
-        GWP = GWP1 + TGO :: transaction "gas used without postRelayCall"
         */
-        vars.tmpInitialGas = relayRequest.relayData.transactionCalldataGasUsed + vars.initialGasLeft + vars.innerGasLimit + config.gasOverhead + config.postOverhead;
-        // Calls to the recipient are performed atomically inside an inner transaction which may revert in case of
-        // errors in the recipient. In either case (revert or regular execution) the return data encodes the
-        // RelayCallStatus value.
-        (vars.success, vars.relayCallStatus) = address(this).call{gas:vars.innerGasLimit}(
-            abi.encodeWithSelector(RelayHub.innerRelayCall.selector, domainSeparatorName, relayRequest, signature, approvalData, vars.gasAndDataLimits,
-            vars.tmpInitialGas - aggregateGasleft(), /* totalInitialGas */
-            vars.maxPossibleGas
-            )
-        );
-        vars.innerGasUsed = vars.gasBeforeInner-aggregateGasleft();
-        (vars.status, vars.relayedCallReturnValue) = abi.decode(vars.relayCallStatus, (RelayCallStatus, bytes));
-        if ( vars.relayedCallReturnValue.length>0 ) {
-            emit TransactionResult(vars.status, vars.relayedCallReturnValue);
-        }
-    }
-    {
-        if (!vars.success) {
-            //Failure cases where the PM doesn't pay
-            if (vars.status == RelayCallStatus.RejectedByPreRelayed ||
-                    (vars.innerGasUsed <= vars.gasAndDataLimits.acceptanceBudget + relayRequest.relayData.transactionCalldataGasUsed) && (
-                    vars.status == RelayCallStatus.RejectedByForwarder ||
-                    vars.status == RelayCallStatus.RejectedByRecipientRevert  //can only be thrown if rejectOnRecipientRevert==true
-                )) {
-                emit TransactionRejectedByPaymaster(
-                    vars.relayManager,
-                    relayRequest.relayData.paymaster,
-                    vars.relayRequestId,
-                    relayRequest.request.from,
-                    relayRequest.request.to,
-                    msg.sender,
-                    vars.functionSelector,
-                    vars.innerGasUsed,
-                    vars.relayedCallReturnValue);
-                return (false, 0, vars.status, vars.relayedCallReturnValue);
+        {
+            
+            //How much gas to pass down to innerRelayCall. must be lower than the default 63/64
+            // actually, min(gasleft*63/64, gasleft-GAS_RESERVE) might be enough.
+            vars.innerGasLimit = gasleft()*63/64- config.gasReserve;
+            vars.gasBeforeInner = aggregateGasleft();
+            
+            /*
+              Preparing to calculate "gasUseWithoutPost":
+              MPG = calldataGasUsage + vars.initialGasLeft :: max possible gas, an approximate gas limit for the current transaction
+              GU1 = MPG - gasleft(called right before innerRelayCall) :: gas actually used by current transaction until that point
+              GU2 = innerGasLimit - gasleft(called inside the innerRelayCall just before preRelayedCall) :: gas actually used by innerRelayCall before calling postRelayCall
+              GWP1 = GU1 + GU2 :: gas actually used by the entire transaction before calling postRelayCall
+              TGO = config.gasOverhead + config.postOverhead :: extra that will be added to the charge to cover hidden costs
+              GWP = GWP1 + TGO :: transaction "gas used without postRelayCall"
+            */
+            //        vars.tmpInitialGas = relayRequest.relayData.transactionCalldataGasUsed + vars.initialGasLeft + vars.innerGasLimit + config.gasOverhead + config.postOverhead;
+            // Calls to the recipient are performed atomically inside an inner transaction which may revert in case of
+            // errors in the recipient. In either case (revert or regular execution) the return data encodes the
+            // RelayCallStatus value.
+            InnerRelayCallParams memory params;
+            params.domainSeparatorName = domainSeparatorName;
+            params.relayRequest = relayRequest;
+            params.signature = signature;
+            params.approvalData = approvalData;
+            params.gasAndDataLimits = vars.gasAndDataLimits;
+            params.totalInitialGas =  vars.tmpInitialGas - aggregateGasleft();
+            params.maxPossibleGas = vars.maxPossibleGas;
+            (vars.success, vars.relayCallStatus) = address(this).call{gas:vars.innerGasLimit}(abi.encodeWithSelector(RelayHub.innerRelayCall.selector, params));            
+
+            vars.innerGasUsed = vars.gasBeforeInner-aggregateGasleft();
+            (vars.status, vars.relayedCallReturnValue) = abi.decode(vars.relayCallStatus, (RelayCallStatus, bytes));
+            if ( vars.relayedCallReturnValue.length>0 ) {
+                emit TransactionResult(vars.status, vars.relayedCallReturnValue);
             }
         }
-
-        // We now perform the actual charge calculation, based on the measured gas used
-        vars.gasUsed = relayRequest.relayData.transactionCalldataGasUsed + (vars.initialGasLeft - aggregateGasleft()) + config.gasOverhead;
-        charge = calculateCharge(vars.gasUsed, relayRequest.relayData);
-        vars.devCharge = calculateDevCharge(charge);
-
-        balances[relayRequest.relayData.paymaster] = balances[relayRequest.relayData.paymaster] - charge;
-        balances[vars.relayManager] = balances[vars.relayManager] + (charge - vars.devCharge);
-        if (vars.devCharge > 0) { // save some gas in case of zero dev charge
-            balances[config.devAddress] = balances[config.devAddress] + vars.devCharge;
-        }
-
         {
-            address from = relayRequest.request.from;
-            address to = relayRequest.request.to;
-            address paymaster = relayRequest.relayData.paymaster;
-            emit TransactionRelayed(
-                vars.relayManager,
-                msg.sender,
-                vars.relayRequestId,
-                from,
-                to,
-                paymaster,
-                vars.functionSelector,
-                vars.status,
-                charge);
-        }
+            if (!vars.success) {
+                //Failure cases where the PM doesn't pay
+                if (vars.status == RelayCallStatus.RejectedByPreRelayed ||
+                    (vars.innerGasUsed <= vars.gasAndDataLimits.acceptanceBudget + relayRequest.relayData.transactionCalldataGasUsed) && (
+                                                                                                                                          vars.status == RelayCallStatus.RejectedByForwarder ||
+                                                                                                                                          vars.status == RelayCallStatus.RejectedByRecipientRevert  //can only be thrown if rejectOnRecipientRevert==true
+                                                                                                                                          )) {
+                    emit TransactionRejectedByPaymaster(
+                                                        vars.relayManager,
+                                                        relayRequest.relayData.paymaster,
+                                                        vars.relayRequestId,
+                                                        relayRequest.request.from,
+                                                        relayRequest.request.to,
+                                                        msg.sender,
+                                                        vars.functionSelector,
+                                                        vars.innerGasUsed,
+                                                        vars.relayedCallReturnValue);
+                    return (false, 0, vars.status, vars.relayedCallReturnValue);
+                }
+            }
+            
+            // We now perform the actual charge calculation, based on the measured gas used
+            vars.gasUsed = relayRequest.relayData.transactionCalldataGasUsed + (vars.initialGasLeft - aggregateGasleft()) + config.gasOverhead;
+            charge = calculateCharge(vars.gasUsed, relayRequest.relayData);
+            vars.devCharge = calculateDevCharge(charge);
+            
+            balances[relayRequest.relayData.paymaster] = balances[relayRequest.relayData.paymaster] - charge;
+            balances[vars.relayManager] = balances[vars.relayManager] + (charge - vars.devCharge);
+            if (vars.devCharge > 0) { // save some gas in case of zero dev charge
+                balances[config.devAddress] = balances[config.devAddress] + vars.devCharge;
+            }
 
-        // avoid variable size memory copying after gas calculation completed on-chain
-        if (tx.origin == DRY_RUN_ADDRESS) {
-            return (true, charge, vars.status, vars.relayedCallReturnValue);
+            /*
+            {
+                address from = relayRequest.request.from;
+                address to = relayRequest.request.to;
+                address paymaster = relayRequest.relayData.paymaster;
+                emit TransactionRelayed(
+                                        vars.relayManager,
+                                        msg.sender,
+                                        vars.relayRequestId,
+                                        from,
+                                        to,
+                                        paymaster,
+                                        vars.functionSelector,
+                                        vars.status,
+                                        charge);
+            }
+            */
+            // avoid variable size memory copying after gas calculation completed on-chain
+            if (tx.origin == DRY_RUN_ADDRESS) {
+                return (true, charge, vars.status, vars.relayedCallReturnValue);
+            }
+            return (true, charge, vars.status, "");
         }
-        return (true, charge, vars.status, "");
     }
-    }
-
+    
     struct InnerRelayCallData {
         uint256 initialGasLeft;
         uint256 gasUsedToCallInner;
@@ -439,26 +465,29 @@ contract RelayHub is IRelayHub, Ownable, ERC165 {
         bytes data;
         bool rejectOnRecipientRevert;
     }
+    
+    struct InnerRelayCallParams {
+        string domainSeparatorName;
+        GsnTypes.RelayRequest relayRequest;
+        bytes signature;
+        bytes approvalData;
+        IPaymaster.GasAndDataLimits gasAndDataLimits;
+        uint256 totalInitialGas;
+        uint256 maxPossibleGas;
+    }
 
+        
     /**
      * @notice This method can only by called by this `RelayHub`.
      * It wraps the execution of the `RelayRequest` in a revertable frame context.
      */
-    function innerRelayCall(
-        string calldata domainSeparatorName,
-        GsnTypes.RelayRequest calldata relayRequest,
-        bytes calldata signature,
-        bytes calldata approvalData,
-        IPaymaster.GasAndDataLimits calldata gasAndDataLimits,
-        uint256 totalInitialGas,
-        uint256 maxPossibleGas
-    )
-    external
-    returns (RelayCallStatus, bytes memory)
+    function innerRelayCall(InnerRelayCallParams calldata params)
+        external
+        returns (RelayCallStatus, bytes memory)
     {
         InnerRelayCallData memory vars;
         vars.initialGasLeft = aggregateGasleft();
-        vars.gasUsedToCallInner = totalInitialGas - gasleft();
+        vars.gasUsedToCallInner = params.totalInitialGas - gasleft();
         // A new gas measurement is performed inside innerRelayCall, since
         // due to EIP150 available gas amounts cannot be directly compared across external calls
 
@@ -471,18 +500,18 @@ contract RelayHub is IRelayHub, Ownable, ERC165 {
 
         // The paymaster is no allowed to withdraw balance from RelayHub during a relayed transaction. We check pre and
         // post state to ensure this doesn't happen.
-        vars.balanceBefore = balances[relayRequest.relayData.paymaster];
+        vars.balanceBefore = balances[params.relayRequest.relayData.paymaster];
 
         // First preRelayedCall is executed.
         // Note: we open a new block to avoid growing the stack too much.
         vars.data = abi.encodeWithSelector(
             IPaymaster.preRelayedCall.selector,
-            relayRequest, signature, approvalData, maxPossibleGas
-        );
+            params.relayRequest, params.signature, params.approvalData, params.maxPossibleGas
+                                           );
         {
             bool success;
             bytes memory retData;
-            (success, retData) = relayRequest.relayData.paymaster.call{gas:gasAndDataLimits.preRelayedCallGasLimit}(vars.data);
+            (success, retData) = params.relayRequest.relayData.paymaster.call{gas:params.gasAndDataLimits.preRelayedCallGasLimit}(vars.data);
             if (!success) {
                 GsnEip712Library.truncateInPlace(retData);
                 revertWithStatus(RelayCallStatus.RejectedByPreRelayed, retData);
@@ -494,11 +523,11 @@ contract RelayHub is IRelayHub, Ownable, ERC165 {
 
         {
             bool forwarderSuccess;
-            (forwarderSuccess, vars.relayedCallSuccess, vars.relayedCallReturnValue) = GsnEip712Library.execute(domainSeparatorName, relayRequest, signature);
+            (forwarderSuccess, vars.relayedCallSuccess, vars.relayedCallReturnValue) = GsnEip712Library.execute(params.domainSeparatorName, params.relayRequest, params.signature);
             if ( !forwarderSuccess ) {
                 revertWithStatus(RelayCallStatus.RejectedByForwarder, vars.relayedCallReturnValue);
             }
-
+            
             if (vars.rejectOnRecipientRevert && !vars.relayedCallSuccess) {
                 // we trusted the recipient, but it reverted...
                 revertWithStatus(RelayCallStatus.RejectedByRecipientRevert, vars.relayedCallReturnValue);
@@ -508,25 +537,25 @@ contract RelayHub is IRelayHub, Ownable, ERC165 {
         // We now determine how much the recipient will be charged, to pass this value to postRelayedCall for accurate
         // accounting.
         vars.data = abi.encodeWithSelector(
-            IPaymaster.postRelayedCall.selector,
-            vars.recipientContext,
-            vars.relayedCallSuccess,
-            vars.gasUsedToCallInner + (vars.initialGasLeft - aggregateGasleft()), /*gasUseWithoutPost*/
-            relayRequest.relayData
-        );
+                                           IPaymaster.postRelayedCall.selector,
+                                           vars.recipientContext,
+                                           vars.relayedCallSuccess,
+                                           vars.gasUsedToCallInner + (vars.initialGasLeft - aggregateGasleft()), /*gasUseWithoutPost*/
+                                           params.relayRequest.relayData
+                                           );
 
         {
-        (bool successPost,bytes memory ret) = relayRequest.relayData.paymaster.call{gas:gasAndDataLimits.postRelayedCallGasLimit}(vars.data);
-
+            (bool successPost,bytes memory ret) = params.relayRequest.relayData.paymaster.call{gas:params.gasAndDataLimits.postRelayedCallGasLimit}(vars.data);
+            
             if (!successPost) {
                 revertWithStatus(RelayCallStatus.PostRelayedFailed, ret);
             }
         }
-
-        if (balances[relayRequest.relayData.paymaster] < vars.balanceBefore) {
+        
+        if (balances[params.relayRequest.relayData.paymaster] < vars.balanceBefore) {
             revertWithStatus(RelayCallStatus.PaymasterBalanceChanged, "");
         }
-
+        
         return (vars.relayedCallSuccess ? RelayCallStatus.OK : RelayCallStatus.RelayedCallFailed, vars.relayedCallReturnValue);
     }
 
@@ -556,7 +585,7 @@ contract RelayHub is IRelayHub, Ownable, ERC165 {
     }
 
     /// @inheritdoc IRelayHub
-    function calculateCharge(uint256 gasUsed, GsnTypes.RelayData calldata relayData) public override virtual view returns (uint256) {
+    function calculateCharge(uint256 gasUsed, GsnTypes.RelayData memory relayData) public override virtual view returns (uint256) {
         uint256 basefee;
         if (relayData.maxFeePerGas == relayData.maxPriorityFeePerGas) {
             basefee = 0;

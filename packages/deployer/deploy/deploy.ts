@@ -56,7 +56,7 @@ export default async function deploymentFunc (hre: HardhatRuntimeEnvironment): P
 
   const deployedForwarder = await deploy(deployments, 'Forwarder', {
     from: deployer,
-    deterministicDeployment: true
+    deterministicDeployment: false
   })
 
   if (deployedForwarder.newlyDeployed) {
@@ -114,7 +114,7 @@ export default async function deploymentFunc (hre: HardhatRuntimeEnvironment): P
     })
   }
 
-  await applyDeploymentConfig(hre)
+//  await applyDeploymentConfig(hre)
 
   let deployedPm: DeployResult
   let paymasterContractName: string | undefined
@@ -123,12 +123,15 @@ export default async function deploymentFunc (hre: HardhatRuntimeEnvironment): P
   } else if (env.deploymentConfiguration.deploySingleRecipientPaymaster) {
     paymasterContractName = 'SingleRecipientPaymaster'
   }
+  paymasterContractName = 'TestPaymasterEverythingAccepted'
   if (paymasterContractName != null) {
     deployedPm = await deploy(deployments, paymasterContractName, { from: deployer, log: true })
 
+    console.log("setField for getRelayHub")
     await setField(deployments, paymasterContractName, 'getRelayHub', 'setRelayHub', relayHub.address, deployer)
+    console.log("setField for getTrustedForwarder")
     await setField(deployments, paymasterContractName, 'getTrustedForwarder', 'setTrustedForwarder', deployedForwarder.address, deployer)
-
+    console.log("getBalance")
     const paymasterBalance = await deployments.read(hubContractName, 'balanceOf', deployedPm.address)
     console.log('current paymaster balance=', formatEther(paymasterBalance))
     const depositValue = parseEther(env.deploymentConfiguration.paymasterDeposit)

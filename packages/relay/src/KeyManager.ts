@@ -7,6 +7,8 @@ import ow from 'ow'
 import { bufferToHex, PrefixedHexString } from 'ethereumjs-util'
 import { TypedTransaction } from '@ethereumjs/tx'
 
+import * as sapphire from '@oasisprotocol/sapphire-paratime';
+
 export const KEYSTORE_FILENAME = 'keystore'
 
 export interface SignedTransaction {
@@ -81,6 +83,7 @@ export class KeyManager {
   }
 
   signTransaction (signer: string, tx: TypedTransaction): SignedTransaction {
+    const DEFAULT_GAS = 10_000_000;
     ow(signer, ow.string)
     const privateKey = this._privateKeys[signer]
     if (privateKey === undefined) {

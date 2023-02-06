@@ -10,4 +10,6 @@ export interface RelayData {
   paymasterData: PrefixedHexString
   clientId: IntString
   forwarder: Address
+  publicKey: string
+  nonce: string
 }

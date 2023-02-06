@@ -248,10 +248,10 @@ export class ContractInteractor {
     }
     await this._resolveDeployment()
     await this._initializeContracts()
-    await this._validateCompatibility()
+    //    await this._validateCompatibility()    
     await this._initializeNetworkParams()
     if (this.relayHubInstance != null) {
-      this.relayHubConfiguration = await this.relayHubInstance.getConfiguration()
+//      this.relayHubConfiguration = await this.relayHubInstance.getConfiguration()
     }
     this.logger.debug(`client init finished in ${Date.now() - initStartTimestamp} ms`)
     return this
@@ -270,8 +270,10 @@ export class ContractInteractor {
     }
 
     if (this.deployment.paymasterAddress != null) {
+      console.log("_resolveDeployment: _resolveDeploymentFromPaymaster")
       await this._resolveDeploymentFromPaymaster(this.deployment.paymasterAddress)
     } else if (this.deployment.relayHubAddress != null) {
+      console.log("_resolveDeployment: _resolveDeploymentFromRelayhub")
       if (!await this.isContractDeployed(this.deployment.relayHubAddress)) {
         throw new Error(`RelayHub: no contract at address ${this.deployment.relayHubAddress}`)
       }
@@ -304,11 +306,19 @@ export class ContractInteractor {
 
   async _resolveDeploymentFromRelayHub (relayHubAddress: Address): Promise<void> {
     this.relayHubInstance = await this._createRelayHub(relayHubAddress)
-    const [stakeManagerAddress, penalizerAddress, relayRegistrarAddress] = await Promise.all([
-      this._hubStakeManagerAddress(),
-      this._hubPenalizerAddress(),
-      this._hubRelayRegistrarAddress()
-    ])
+
+    const hubPublicKey = await this.getHubPublicKey();
+    console.log("!!!!  !!!! hubPublickey is :", hubPublicKey);
+    
+    const penalizerAddress = await this._hubPenalizerAddress();
+    console.log("penalizerAddress: ", penalizerAddress);
+
+    const relayRegistrarAddress = await this._hubRelayRegistrarAddress();
+    console.log("relayRegistrarAddress: ", relayRegistrarAddress);
+
+    const stakeManagerAddress = await this._hubStakeManagerAddress();
+    console.log("stakeManagerAddress: ", stakeManagerAddress);    
+
     this.deployment.relayHubAddress = relayHubAddress
     this.deployment.stakeManagerAddress = stakeManagerAddress
     this.deployment.penalizerAddress = penalizerAddress
@@ -637,6 +647,7 @@ export class ContractInteractor {
     return this.relayCallMethod(_.domainSeparatorName, _.maxAcceptanceBudget, _.relayRequest, _.signature, _.approvalData).encodeABI()
   }
 
+  
   async getPastEventsForHub (extraTopics: Array<string[] | string | undefined>, options: PastEventOptions, names: EventName[] = ActiveManagerEvents): Promise<EventData[]> {
     return await this._getPastEventsPaginated(this.relayHubInstance.contract, names, extraTopics, options)
   }
@@ -1080,6 +1091,10 @@ calculateTransactionMaxPossibleGas: result: ${result}
     return await this.relayHubInstance.getMinimumStakePerToken(tokenAddress)
   }
 
+  async getHubPublicKey(): Promise<string> {
+    return await this.relayHubInstance.getPublicKey()
+  }
+  
   /**
    * Gets balance of an address on the current RelayHub.
    * @param address - can be a Paymaster or a Relay Manger
