@@ -439,6 +439,7 @@ export class RelayClient {
     const value = gsnTransactionDetails.value ?? '0'
     const secondsNow = Math.round(Date.now() / 1000)
     const validUntilTime = (secondsNow + this.config.requestValidSeconds).toString()
+    const nonce = hexlify(nacl.randomBytes(deoxysii.NonceSize)) + "0000000000000000000000000000000000";    
     const relayRequest: RelayRequest = {
       request: {
         to: gsnTransactionDetails.to,
@@ -458,7 +459,9 @@ export class RelayClient {
         maxPriorityFeePerGas,
         paymaster,
         clientId: this.config.clientId,
-        forwarder
+        forwarder,
+        nonce,
+        publicKey: this.publicKey
       }
     }
 
