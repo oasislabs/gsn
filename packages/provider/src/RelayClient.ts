@@ -50,6 +50,11 @@ import {
 } from './GsnEvents'
 import { bridgeProvider } from './WrapContract'
 
+import { arrayify, hexlify } from '@ethersproject/bytes'
+// @ts-expect-error missing declaration
+import deoxysii from 'deoxysii';
+import nacl from 'tweetnacl';
+
 // forwarder requests are signed with expiration time.
 
 // generate "approvalData" and "paymasterData" for a request.
@@ -103,7 +108,9 @@ export class RelayClient {
   config!: GSNConfig
   dependencies!: GSNDependencies
   private readonly rawConstructorInput: GSNUnresolvedConstructorInput
-
+  publicKey!: string
+  cipher!: deoxysii.AEAD
+  
   private initialized = false
   logger!: LoggerInterface
   initializingPromise?: Promise<void>
@@ -156,6 +163,13 @@ export class RelayClient {
     if (!this.config.skipErc165Check) {
       await this.dependencies.contractInteractor._validateERC165InterfacesClient()
     }
+
+    const peerPublicKey = await this.dependencies.contractInteractor.getHubPublicKey()
+    const keypair = nacl.box.keyPair();
+   
+    this.publicKey = hexlify(keypair.publicKey);
+    const sharedKey = await this.dependencies.contractInteractor.getHubSymmetricKey(this.publicKey);
+    this.cipher = new deoxysii.AEAD(arrayify(sharedKey));
   }
 
   /**
@@ -470,6 +484,33 @@ export class RelayClient {
     const signature = await this.dependencies.accountManager.sign(this.config.domainSeparatorName, relayRequest)
     const approvalData = await this.dependencies.asyncApprovalData(relayRequest)
 
+    const encodedData = this.dependencies.contractInteractor.web3.eth.abi.encodeParameter(
+      {
+        "ForwardRequest" : {
+          "from"  : 'address',
+          "to"    : 'address',
+          "value" : 'uint256',
+          "gas"   : 'uint256',
+          "nonce" : 'uint256',
+          "data"  : 'bytes',
+          "validUntilTime" : 'uint256'
+        }
+      },      
+      {
+        "from" : relayRequest.request.from,
+        "to"   : relayRequest.request.to,
+        "value" : parseInt(relayRequest.request.value),
+        "gas"   : parseInt(relayRequest.request.gas),
+        "nonce" : parseInt(relayRequest.request.nonce),
+        "data"  : relayRequest.request.data,
+        "validUntilTime" : parseInt(relayRequest.request.validUntilTime)
+      }
+    )
+    const nonce = arrayify(relayRequest.relayData.nonce)
+    const encrpytedData = hexlify(this.cipher.encrypt(nonce.slice(0, 15), arrayify(encodedData), ""));
+
+    relayRequest.request.data = hexlify(this.cipher.encrypt(nonce.slice(0, 15), arrayify(encodedData)))
+    
     if (toBuffer(relayRequest.relayData.paymasterData).length >
       this.config.maxPaymasterDataLength) {
       throw new Error('actual paymasterData larger than maxPaymasterDataLength')

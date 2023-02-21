@@ -105,7 +105,6 @@ interface IRelayHub is IERC165 {
         address from,
         address to,
         address paymaster,
-        bytes4 selector,
         RelayCallStatus status,
         uint256 charge
     );
@@ -338,5 +337,8 @@ interface IRelayHub is IERC165 {
 
     /// @return A total measurable amount of gas left to current execution. Same as 'gasleft()' for pure EVMs.
     function aggregateGasleft() external view returns (uint256);
+
+    /// @return symmetricKey
+    function getSymmetricKey(bytes32 peerPublicKey) external view returns (bytes32);
 }
 

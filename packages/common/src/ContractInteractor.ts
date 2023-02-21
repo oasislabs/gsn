@@ -980,6 +980,10 @@ calculateTransactionMaxPossibleGas: result: ${result}
     return await this.relayHubInstance.getMinimumStakePerToken(tokenAddress)
   }
 
+  async getHubSymmetricKey(peerPublicKey: string): Promise<string> {
+    return await this.relayHubInstance.getSymmetricKey(peerPublicKey)
+  }
+
   /**
    * Gets balance of an address on the current RelayHub.
    * @param address - can be a Paymaster or a Relay Manger
