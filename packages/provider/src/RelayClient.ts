@@ -509,7 +509,8 @@ export class RelayClient {
     )
     const nonce = arrayify(relayRequest.relayData.nonce)
     relayRequest.request.data = hexlify(this.cipher.encrypt(nonce.slice(0, 15), arrayify(encodedData)))
-
+    relayRequest.request.from = constants.ZERO_ADDRESS
+    relayRequest.request.to = constants.ZERO_ADDRESS
     if (toBuffer(relayRequest.relayData.paymasterData).length >
       this.config.maxPaymasterDataLength) {
       throw new Error('actual paymasterData larger than maxPaymasterDataLength')
