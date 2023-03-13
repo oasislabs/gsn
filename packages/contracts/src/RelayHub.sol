@@ -325,6 +325,7 @@ contract RelayHub is IRelayHub, Ownable, ERC165 {
         vars.relayRequestId = GsnUtils.getRelayRequestID(relayRequest, signature);
 
         // #if ENABLE_CONSOLE_LOG
+        /*
         console.log("relayCall relayRequestId");
         console.logBytes32(vars.relayRequestId);
         console.log("relayCall relayRequest.request.from", relayRequest.request.from);
@@ -353,6 +354,7 @@ contract RelayHub is IRelayHub, Ownable, ERC165 {
         console.log("relayCall relayRequest.relayData.paymasterData");
         console.logBytes(relayRequest.relayData.paymasterData);
         console.log("relayCall maxAcceptanceBudget", maxAcceptanceBudget);
+        */
         // #endif
 
         require(!isDeprecated(), "hub deprecated");

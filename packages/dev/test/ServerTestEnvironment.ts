@@ -20,7 +20,8 @@ import {
   defaultEnvironment,
   ether,
   registerForwarderForGsn,
-  removeHexPrefix
+  removeHexPrefix,
+  sleep
 } from '@opengsn/common'
 import {
   IERC2771RecipientInstance,
@@ -121,20 +122,32 @@ export class ServerTestEnvironment {
    * @param relayRegistrationMaxAge
    */
   async init (clientConfig: Partial<GSNConfig> = {}, relayHubConfig: Partial<RelayHubConfiguration> = {}, contractFactory?: (deployment: GSNContractsDeployment) => Promise<ContractInteractor>, HubContract?: any, relayRegistrationMaxAge = constants.yearInSec): Promise<void> {
+    console.debug("I am init here!")
     this.testToken = await TestToken.new()
+    console.log("TestToken address: ", this.testToken.address)
     this.stakeManager = await StakeManager.new(defaultEnvironment.maxUnstakeDelay, 0, 0, constants.BURN_ADDRESS, constants.BURN_ADDRESS)
+    console.log("StakeManager address: ", this.stakeManager.address)
     this.penalizer = await Penalizer.new(defaultEnvironment.penalizerConfiguration.penalizeBlockDelay, defaultEnvironment.penalizerConfiguration.penalizeBlockExpiration)
+    console.log("Penalizer address: ", this.penalizer.address)
     // @ts-ignore - IRelayHub and RelayHub types are similar enough for tests to work
     this.relayHub = await deployHub(this.stakeManager.address, this.penalizer.address, constants.ZERO_ADDRESS, this.testToken.address, 1e18.toString(), relayHubConfig, defaultEnvironment, HubContract, relayRegistrationMaxAge)
+    console.log("RelayHub address: ", this.relayHub.address)
     this.forwarder = await Forwarder.new()
+    console.log("Forwarder address: ", this.forwarder.address)
     this.recipient = await TestRecipient.new(this.forwarder.address)
+    console.log("TestRecipient address: ", this.recipient.address)
     this.paymaster = await TestPaymasterEverythingAccepted.new()
+    console.log("PayMaster address: ", this.paymaster.address)
     await registerForwarderForGsn(defaultGsnConfig.domainSeparatorName, this.forwarder)
-
+    
+    await sleep(15000)
+    
     await this.paymaster.setTrustedForwarder(this.forwarder.address)
     await this.paymaster.setRelayHub(this.relayHub.address)
     await this.paymaster.deposit({ value: this.web3.utils.toWei('1', 'ether') })
 
+    await sleep(15000)
+    
     this.encodedFunction = this.recipient.contract.methods.emitMessage('hello world').encodeABI()
     const shared: Partial<GSNConfig> = {
       loggerConfiguration: { logLevel: 'error' },
@@ -204,11 +217,14 @@ export class ServerTestEnvironment {
 
   async stakeAndAuthorizeHub (stake: BN, unstakeDelay: number): Promise<void> {
     await this.testToken.mint(stake, { from: this.relayOwner })
+    await sleep(20000)
     await this.testToken.approve(this.stakeManager.address, stake, { from: this.relayOwner })
+    await sleep(20000)
     // Now owner can do its operations
     await this.stakeManager.stakeForRelayManager(this.testToken.address, this.relayServer.managerAddress, unstakeDelay, stake, {
       from: this.relayOwner
     })
+    await sleep(20000)
     await this.stakeManager.authorizeHubByOwner(this.relayServer.managerAddress, this.relayHub.address, {
       from: this.relayOwner
     })

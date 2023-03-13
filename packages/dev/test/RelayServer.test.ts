@@ -37,6 +37,7 @@ const TestPaymasterConfigurableMisbehavior = artifacts.require('TestPaymasterCon
 
 contract('RelayServer', function (accounts: Truffle.Accounts) {
   const registrationRateSeconds = 500
+
   const alertedDelaySeconds = 0
 
   let id: string

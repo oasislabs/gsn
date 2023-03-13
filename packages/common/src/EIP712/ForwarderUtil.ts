@@ -7,14 +7,14 @@ import { LoggerInterface } from '../LoggerInterface'
 export async function registerForwarderForGsn (domainSeparatorName: string, forwarderTruffleOrWeb3: IForwarderInstance | Contract, logger?: LoggerInterface, sendOptions: any = undefined): Promise<void> {
   let options
   let forwarder: Contract
-  if ((forwarderTruffleOrWeb3).contract != null) {
-    forwarder = (forwarderTruffleOrWeb3).contract
+  if ((forwarderTruffleOrWeb3 as any).contract != null) {
+    forwarder = (forwarderTruffleOrWeb3 as any).contract
     // truffle-contract carries default options (e.g. from) in the object.
     // @ts-ignore
     options = { ...forwarderTruffleOrWeb3.constructor.defaults(), ...sendOptions }
   } else {
     options = { ...sendOptions }
-    forwarder = forwarderTruffleOrWeb3
+    forwarder = forwarderTruffleOrWeb3 as any
   }
 
   function logTx (p: any): any {
