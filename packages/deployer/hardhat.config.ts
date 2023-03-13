@@ -5,6 +5,7 @@ import '@nomiclabs/hardhat-web3'
 import 'hardhat-deploy'
 import '@nomiclabs/hardhat-ethers'
 import '@nomiclabs/hardhat-etherscan'
+import '@oasisprotocol/sapphire-hardhat';
 
 import fs from 'fs'
 import { HardhatUserConfig } from 'hardhat/config'
@@ -48,7 +49,7 @@ if (!fs.existsSync(path.join(CONTRACTS_LINK, 'RelayHub.sol'))) {
 
 const config: HardhatUserConfig = {
   solidity: {
-    version: '0.8.7',
+    version: '0.8.8',
     settings: {
       optimizer: {
         enabled: true
@@ -67,6 +68,11 @@ const config: HardhatUserConfig = {
     npmtest: { // used from "npm test". see package.json
       url: 'http://127.0.0.1:8544',
       saveDeployments: false
+    },
+    sapphire: {
+      url: 'https://testnet.sapphire.oasis.dev',
+      accounts: ['47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a'],
+      chainId: 0x5aff
     },
 
     dev: getNetwork('http://localhost:8545'),

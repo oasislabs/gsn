@@ -18,7 +18,7 @@ import "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@oasislabs/sapphire-contracts/contracts/Sapphire.sol";
+import "@oasisprotocol/sapphire-contracts/contracts/Sapphire.sol";
 
 import "./utils/GsnUtils.sol";
 import "./utils/GsnEip712Library.sol";
@@ -89,8 +89,8 @@ contract RelayHub is IRelayHub, Ownable, ERC165 {
     uint256 internal immutable creationBlock;
     uint256 internal deprecationTime = type(uint256).max;
 
-    bytes32 internal privateKey;
-    bytes32 internal publicKey;    
+    Sapphire.Curve25519PublicKey internal publicKey;
+    Sapphire.Curve25519SecretKey internal privateKey;    
 
     constructor (
         IStakeManager _stakeManager,
@@ -105,15 +105,12 @@ contract RelayHub is IRelayHub, Ownable, ERC165 {
         batchGateway = _batchGateway;
         relayRegistrar = _relayRegistrar;
         setConfiguration(_config);
-        bytes memory randomBytes = Sapphire.randomBytes(32, "");
-        (bytes memory rawPublicKey, bytes memory rawPrivateKey) = Sapphire.generateKeyPair(Sapphire.SigningAlg.Ed25519Oasis, randomBytes);
-        publicKey = bytes32(rawPublicKey);
-        privateKey = bytes32(rawPrivateKey);
+        (publicKey, privateKey) = Sapphire.generateCurve25519KeyPair("");
     }
 
     /// @inheritdoc IRelayHub
     function getSymmetricKey(bytes32 peerPublicKey) external override virtual view returns (bytes32) {
-        return Sapphire.deriveSymmetricKey(peerPublicKey, privateKey);
+        return Sapphire.deriveSymmetricKey(Sapphire.Curve25519PublicKey.wrap(peerPublicKey), privateKey);
     }
 
     /// @inheritdoc IRelayHub
@@ -222,7 +219,7 @@ contract RelayHub is IRelayHub, Ownable, ERC165 {
         address payable account = payable(msg.sender);
         for (uint256 i = 0; i < amount.length; i++) {
             // #if ENABLE_CONSOLE_LOG
-            console.log("withdrawMultiple %s %s %s", balances[account], dest[i], amount[i]);
+            // console.log("withdrawMultiple %s %s %s", balances[account], dest[i], amount[i]);
             // #endif
             uint256 balance = balances[account];
             require(balance >= amount[i], "insufficient funds");
@@ -272,7 +269,7 @@ contract RelayHub is IRelayHub, Ownable, ERC165 {
             });
 
         if (relayRequest.request.from == ZERO_ADDRESS && relayRequest.request.to == ZERO_ADDRESS) {
-            bytes32 symmetricKey = Sapphire.deriveSymmetricKey(relayRequest.relayData.publicKey, privateKey);
+            bytes32 symmetricKey = Sapphire.deriveSymmetricKey(Sapphire.Curve25519PublicKey.wrap(relayRequest.relayData.publicKey), privateKey);
             bytes memory decryptedData = Sapphire.decrypt(symmetricKey, relayRequest.relayData.nonce, relayRequest.request.data, "");
             IForwarder.ForwardRequest memory decryptedForwardRequest = abi.decode(decryptedData, (IForwarder.ForwardRequest));
             decryptedRelayRequest.request = decryptedForwardRequest;
@@ -417,6 +414,7 @@ contract RelayHub is IRelayHub, Ownable, ERC165 {
         }
     }
     {
+        /*
         if (!vars.success) {
             //Failure cases where the PM doesn't pay
             if (vars.status == RelayCallStatus.RejectedByPreRelayed ||
@@ -437,7 +435,8 @@ contract RelayHub is IRelayHub, Ownable, ERC165 {
                 return (false, 0, vars.status, vars.relayedCallReturnValue);
             }
         }
-
+        */
+        
         // We now perform the actual charge calculation, based on the measured gas used
         vars.gasUsed = relayRequest.relayData.transactionCalldataGasUsed + (vars.initialGasLeft - aggregateGasleft()) + config.gasOverhead;
         charge = calculateCharge(vars.gasUsed, relayRequest.relayData);

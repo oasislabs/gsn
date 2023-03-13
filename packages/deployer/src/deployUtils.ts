@@ -8,7 +8,8 @@ import {
   Environment,
   getEnvironment,
   isSameAddress,
-  merge
+  merge,
+  sleep
 } from '@opengsn/common'
 import { ethers } from 'hardhat'
 import { DeploymentsExtension, TxOptions } from 'hardhat-deploy/types'
@@ -120,6 +121,9 @@ export async function setField (deployments: DeploymentsExtension, contract: str
     from: deployer,
     log: true
   }
+  console.log("sleep 20 seconds to wait previous transactions to get confirmed...")
+  await sleep(20000)
+
   const currentVal = await deployments.read(contract, options, getFunc)
   if (currentVal.toString() !== val) {
     console.log('calling', `${contract}.${setFunc}( ${val} )`)
@@ -245,6 +249,7 @@ export async function applyDeploymentConfig (hre: HardhatRuntimeEnvironment): Pr
 
   const contracts = await deployments.all()
   const relayHub = contracts.RelayHub
+  console.log("applyDeploymentConfig relayHub address: ", relayHub.address)
   const hub = new ethers.Contract(relayHub.address, relayHub.abi, ethers.provider.getSigner())
 
   await applyHubConfiguration(env, hub)

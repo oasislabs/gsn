@@ -20,7 +20,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@oasislabs/sapphire-contracts": "^0.1.0",
+    "@oasisprotocol/sapphire-contracts": "^0.2.0",
     "@openzeppelin/contracts": "^4.2.0",
     "web3-eth-contract": "^1.7.4"
   },

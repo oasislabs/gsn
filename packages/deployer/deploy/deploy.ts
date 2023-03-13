@@ -1,6 +1,6 @@
 import { DeploymentsExtension } from 'hardhat-deploy/types'
 
-import { constants, GsnDomainSeparatorType, GsnRequestType } from '@opengsn/common'
+import { constants, GsnDomainSeparatorType, GsnRequestType, sleep } from '@opengsn/common'
 import { defaultGsnConfig } from '@opengsn/provider'
 
 import { DeployOptions, DeployResult } from 'hardhat-deploy/dist/types'
@@ -56,7 +56,7 @@ export default async function deploymentFunc (hre: HardhatRuntimeEnvironment): P
 
   const deployedForwarder = await deploy(deployments, 'Forwarder', {
     from: deployer,
-    deterministicDeployment: true
+    deterministicDeployment: false
   })
 
   if (deployedForwarder.newlyDeployed) {
@@ -113,7 +113,9 @@ export default async function deploymentFunc (hre: HardhatRuntimeEnvironment): P
       ]
     })
   }
-
+  console.log("sleep 20 seconds to get contracts creation confirmed...")
+  await sleep(20000)
+  
   await applyDeploymentConfig(hre)
 
   let deployedPm: DeployResult
