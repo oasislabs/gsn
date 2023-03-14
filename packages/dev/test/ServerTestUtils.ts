@@ -35,7 +35,9 @@ export async function assertRelayAdded (
   checkWorkers = true,
   checkPrivate = false
 ): Promise<void> {
+  console.log("transactionHashes are: ", transactionHashes)
   const receipts = await resolveAllReceipts(transactionHashes)
+  console.log("receipts are: ", receipts)
   const registeredReceipt = receipts.find(r => {
     const decodedLogs = abiDecoder.decodeLogs(r.logs).map(server.registrationManager._parseEvent)
     return decodedLogs.find((it: any) => it.name === 'RelayServerRegistered') != null

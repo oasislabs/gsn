@@ -12,26 +12,31 @@ import {
   toNumber
 } from '@opengsn/common'
 
-describe('RelayServerIntegration', function (accounts: Truffle.Accounts) {
+const TestRelayHub = artifacts.require('TestRelayHub')
+
+contract('RelayServerIntegration', function (accounts: Truffle.Accounts) {
+  const registrationRateSeconds = 500
   const alertedDelaySeconds = 0
-  it('should relay transaction', async function() {
-    const relayClientConfig: Partial<GSNConfig> = {
-      preferredRelays: [LocalhostOne],
-      maxRelayNonceGap: 0
-    }    
-    console.log("I am here!")
-    const env = new ServerTestEnvironment(web3.currentProvider as HttpProvider, accounts)
-    await env.init(relayClientConfig, undefined, undefined, TestRelayHub, registrationRateSeconds)
-    const overrideParams: Partial<ServerConfigParams> = {
-      alertedDelaySeconds
-    }
-    await env.newServerInstance(overrideParams)
-    await env.clearServerStorage()
-    
-    const overrideDetails: Partial<GsnTransactionDetails> = {}
-    await sleep(20000)
-    const req = await env.createRelayHttpRequest(overrideDetails)
-    await env.relayServer._refreshGasFees()
-    await env.relayServer.createRelayTransaction(req)        
+  describe("integration", function() {
+    this.slow(600000)
+    it('should relay transaction', async function() {
+      const relayClientConfig: Partial<GSNConfig> = {
+        preferredRelays: [LocalhostOne],
+        maxRelayNonceGap: 0
+      }    
+      console.log("accounts: ", accounts)
+      const env = new ServerTestEnvironment(web3.currentProvider as HttpProvider, accounts)
+      await env.init(relayClientConfig, undefined, undefined, TestRelayHub, registrationRateSeconds)
+      const overrideParams: Partial<ServerConfigParams> = {
+        alertedDelaySeconds
+      }
+      await env.newServerInstance(overrideParams)
+      await env.clearServerStorage()
+      
+      const overrideDetails: Partial<GsnTransactionDetails> = {}
+      const req = await env.createRelayHttpRequest(overrideDetails)
+      await env.relayServer._refreshGasFees()
+      await env.relayServer.createRelayTransaction(req)        
+    })
   })
 })

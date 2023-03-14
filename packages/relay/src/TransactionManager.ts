@@ -14,7 +14,8 @@ import {
   ObjectMap,
   TransactionType,
   constants,
-  isSameAddress
+  isSameAddress,
+  sleep,
 } from '@opengsn/common'
 
 import { TxStoreManager } from './TxStoreManager'
@@ -148,6 +149,8 @@ data                     | ${transaction.data}
         throw new Error(`txhash mismatch: from receipt: ${transactionHash} from txstore:${verifiedTxId}`)
       }
       this.emit('TransactionBroadcast')
+      console.log("sleep 20 seconds for broadcast transaction")
+      await sleep(20000)     
       return {
         transactionHash,
         signedTx,
@@ -173,7 +176,7 @@ data                     | ${transaction.data}
     const maxPriorityFeePerGas = parseInt(txDetails.maxPriorityFeePerGas ?? maxFeePerGas.toString())
 
     let gasLimit = txDetails.gasLimit
-    if (gasLimit == null) {
+    if (gasLimit == null) {      
       gasLimit = await this.contractInteractor.estimateGas({
         from: txDetails.signer,
         to: txDetails.destination,

@@ -62,6 +62,7 @@ const StakeManager = artifacts.require('StakeManager')
 const TestToken = artifacts.require('TestToken')
 const TestRecipient = artifacts.require('TestRecipient')
 const TestPaymasterEverythingAccepted = artifacts.require('TestPaymasterEverythingAccepted')
+const RelayHub = artifacts.require('RelayHub')
 
 abiDecoder.addABI(RelayHubABI)
 abiDecoder.addABI(StakeManagerABI)
@@ -110,7 +111,7 @@ export class ServerTestEnvironment {
   constructor (provider: HttpProvider, accounts: Address[]) {
     this.provider = provider
     this.web3 = new Web3(this.provider)
-    this.relayOwner = accounts[4]
+    this.relayOwner = accounts[0]
   }
 
   /**
@@ -123,38 +124,56 @@ export class ServerTestEnvironment {
    */
   async init (clientConfig: Partial<GSNConfig> = {}, relayHubConfig: Partial<RelayHubConfiguration> = {}, contractFactory?: (deployment: GSNContractsDeployment) => Promise<ContractInteractor>, HubContract?: any, relayRegistrationMaxAge = constants.yearInSec): Promise<void> {
     console.debug("I am init here!")
-    this.testToken = await TestToken.new()
+//    this.testToken = await TestToken.new()
+    this.testToken = await TestToken.at("0x815c16FAC3863b0329F75eB8813f611FDAbDe9D0")
     console.log("TestToken address: ", this.testToken.address)
-    this.stakeManager = await StakeManager.new(defaultEnvironment.maxUnstakeDelay, 0, 0, constants.BURN_ADDRESS, constants.BURN_ADDRESS)
-    console.log("StakeManager address: ", this.stakeManager.address)
-    this.penalizer = await Penalizer.new(defaultEnvironment.penalizerConfiguration.penalizeBlockDelay, defaultEnvironment.penalizerConfiguration.penalizeBlockExpiration)
-    console.log("Penalizer address: ", this.penalizer.address)
-    // @ts-ignore - IRelayHub and RelayHub types are similar enough for tests to work
-    this.relayHub = await deployHub(this.stakeManager.address, this.penalizer.address, constants.ZERO_ADDRESS, this.testToken.address, 1e18.toString(), relayHubConfig, defaultEnvironment, HubContract, relayRegistrationMaxAge)
-    console.log("RelayHub address: ", this.relayHub.address)
-    this.forwarder = await Forwarder.new()
-    console.log("Forwarder address: ", this.forwarder.address)
-    this.recipient = await TestRecipient.new(this.forwarder.address)
-    console.log("TestRecipient address: ", this.recipient.address)
-    this.paymaster = await TestPaymasterEverythingAccepted.new()
-    console.log("PayMaster address: ", this.paymaster.address)
-    await registerForwarderForGsn(defaultGsnConfig.domainSeparatorName, this.forwarder)
-    
-    await sleep(15000)
-    
-    await this.paymaster.setTrustedForwarder(this.forwarder.address)
-    await this.paymaster.setRelayHub(this.relayHub.address)
-    await this.paymaster.deposit({ value: this.web3.utils.toWei('1', 'ether') })
 
-    await sleep(15000)
+//    this.stakeManager = await StakeManager.new(defaultEnvironment.maxUnstakeDelay, 0, 0, constants.BURN_ADDRESS, constants.BURN_ADDRESS)
+    this.stakeManager = await StakeManager.at("0x2a4e40EE69d2fC5012794aE443d115B364e490FC");
+    console.log("StakeManager address: ", this.stakeManager.address)
+
+    
+    //    this.penalizer = await Penalizer.new(defaultEnvironment.penalizerConfiguration.penalizeBlockDelay, defaultEnvironment.penalizerConfiguration.penalizeBlockExpiration)
+    this.penalizer = await Penalizer.at("0x2D1D1DF9718DDfbD90f8019c1FD2257dFCdf8e5C");    
+    console.log("Penalizer address: ", this.penalizer.address)
+    
+    // @ts-ignore - IRelayHub and RelayHub types are similar enough for tests to work
+    // this.relayHub = await deployHub(this.stakeManager.address, this.penalizer.address, constants.ZERO_ADDRESS, this.testToken.address, 1e18.toString(), relayHubConfig, defaultEnvironment, HubContract, relayRegistrationMaxAge)
+    this.relayHub = await RelayHub.at("0xf3807026Cb92804b2A124f36AC45a3134EF1b464");
+    console.log("RelayHub address: ", this.relayHub.address)
+    
+    // this.forwarder = await Forwarder.new()
+    this.forwarder = await Forwarder.at("0xf5016F780f75d72355eBcCf7Bc5A9b4Ccf813bf1");
+    
+    console.log("Forwarder address: ", this.forwarder.address)
+
+    
+    //    this.recipient = await TestRecipient.new(this.forwarder.address)
+    this.recipient = await TestRecipient.at("0xa3E9E39bCF2c4CB945868d6BE0B015CA17144273");
+    console.log("TestRecipient address: ", this.recipient.address)
+
+
+    // this.paymaster = await TestPaymasterEverythingAccepted.new()
+    this.paymaster = await TestPaymasterEverythingAccepted.at("0xCA41be1a194d2425910bD6D7dee3E0EE21747762");    
+    console.log("PayMaster address: ", this.paymaster.address)
+
+    
+    //    await registerForwarderForGsn(defaultGsnConfig.domainSeparatorName, this.forwarder)
+    //    await sleep(15000)
+    
+    //    await this.paymaster.setTrustedForwarder(this.forwarder.address)
+    // await this.paymaster.setRelayHub(this.relayHub.address)
+    //    await this.paymaster.deposit({ value: this.web3.utils.toWei('1', 'ether') })
+
+    //    await sleep(15000)
     
     this.encodedFunction = this.recipient.contract.methods.emitMessage('hello world').encodeABI()
     const shared: Partial<GSNConfig> = {
-      loggerConfiguration: { logLevel: 'error' },
+      loggerConfiguration: { logLevel: 'debug' },
       paymasterAddress: this.paymaster.address
     }
     if (contractFactory == null) {
-      const logger = createServerLogger('error', '', '')
+      const logger = createServerLogger('debug', '', '')
       const maxPageSize = Number.MAX_SAFE_INTEGER
       this.contractInteractor = new ContractInteractor({
         environment: defaultEnvironment,
@@ -188,14 +207,22 @@ export class ServerTestEnvironment {
     await this.relayServer.init()
     // initialize server - gas price, stake, owner, etc, whatever
     let latestBlock = await this.web3.eth.getBlock('latest')
-
+    console.log("latestBlock0: ", latestBlock);
     await this.relayServer._worker(latestBlock)
+
     latestBlock = await this.web3.eth.getBlock('latest')
+    console.log("latestBlock1: ", latestBlock);
     await this.stakeAndAuthorizeHub(ether('1'), unstakeDelay)
     // This run should call 'registerRelayServer' and 'addWorkers'
+    await this.relayServer._worker(latestBlock)
+    await sleep(20000)
+    latestBlock = await this.web3.eth.getBlock('latest')
+    console.log("latestBlock2: ", latestBlock);
     const receipts = await this.relayServer._worker(latestBlock)
+    console.log("start to assert relay added")
     await assertRelayAdded(receipts, this.relayServer) // sanity check
     latestBlock = await this.web3.eth.getBlock('latest')
+    console.log("latestBlock3: ", latestBlock);
     await this.relayServer._worker(latestBlock)
   }
 
@@ -213,21 +240,27 @@ export class ServerTestEnvironment {
       from: this.relayOwner,
       value: web3.utils.toWei('2', 'ether')
     })
+    console.log("finish fundServer")
   }
 
   async stakeAndAuthorizeHub (stake: BN, unstakeDelay: number): Promise<void> {
     await this.testToken.mint(stake, { from: this.relayOwner })
     await sleep(20000)
+    console.log("sleep 20 seconds for mint");
     await this.testToken.approve(this.stakeManager.address, stake, { from: this.relayOwner })
     await sleep(20000)
+    console.log("sleep 20 seconds for approve");
     // Now owner can do its operations
     await this.stakeManager.stakeForRelayManager(this.testToken.address, this.relayServer.managerAddress, unstakeDelay, stake, {
       from: this.relayOwner
     })
     await sleep(20000)
+    console.log("sleep 20 seconds for stake");
     await this.stakeManager.authorizeHubByOwner(this.relayServer.managerAddress, this.relayHub.address, {
       from: this.relayOwner
     })
+    await sleep(20000)
+    console.log("sleep 20 seconds for authorize");
   }
 
   newServerInstanceNoFunding (config: Partial<ServerConfigParams> = {}, serverWorkdirs?: ServerWorkdirs): void {
@@ -238,7 +271,7 @@ export class ServerTestEnvironment {
       checkInterval: 100,
       workdir: serverWorkdirs?.workdir
     }
-    const logger = createServerLogger('error', '', '')
+    const logger = createServerLogger('debug', '', '')
     const managerKeyManager = this._createKeyManager(serverWorkdirs?.managerWorkdir)
     const workersKeyManager = this._createKeyManager(serverWorkdirs?.workersWorkdir)
     const txStoreManager = new TxStoreManager({
@@ -266,6 +299,7 @@ export class ServerTestEnvironment {
     this.relayServer.on('error', (e) => {
       console.log('newServer event', e.message)
     })
+    console.log("finish newServerInstanceNofunding")
   }
 
   async createRelayHttpRequest (
@@ -292,9 +326,9 @@ export class ServerTestEnvironment {
       from: this.gasLess,
       to: this.recipient.address,
       data: this.encodedFunction,
-      gas: toHex(1000000),
-      maxFeePerGas: toHex(20000000000),
-      maxPriorityFeePerGas: toHex(20000000000)
+      gas: toHex(150000),
+      maxFeePerGas: toHex(100000000000),
+      maxPriorityFeePerGas: toHex(100000000000)
     }
 
     const mergedDeployment = Object.assign({}, this.relayClient.dependencies.contractInteractor.getDeployment(), overrideDeployment)
@@ -307,7 +341,7 @@ export class ServerTestEnvironment {
       // eslint-disable-next-line @typescript-eslint/return-await,@typescript-eslint/promise-function-async
       return this.relayClient._prepareRelayRequest(mergedTransactionDetail).then(relayRequest => {
         this.relayClient.fillRelayInfo(relayRequest, relayInfo)
-        return this.relayClient._prepareRelayHttpRequest(relayRequest, relayInfo)
+        return this.relayClient._prepareRelayHttpRequest(relayRequest, relayInfo)        
       })
     } finally {
       sandbox.restore()

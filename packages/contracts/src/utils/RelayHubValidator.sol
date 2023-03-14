@@ -14,7 +14,7 @@ library RelayHubValidator {
     /// @notice Validate that encoded `relayCall` is properly packed without any extra bytes
     function verifyTransactionPacking(
         string calldata domainSeparatorName,
-        GsnTypes.RelayRequest memory relayRequest,
+        GsnTypes.RelayRequest calldata relayRequest,
         bytes calldata signature,
         bytes calldata approvalData
     ) internal pure {

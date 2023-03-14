@@ -317,6 +317,8 @@ contract RelayHub is IRelayHub, Ownable, ERC165 {
         RelayCallData memory vars;
         vars.initialGasLeft = aggregateGasleft();
 
+        // RelayHubValidator.verifyTransactionPacking(domainSeparatorName,rawRelayRequest,signature,approvalData);
+                
         GsnTypes.RelayRequest memory relayRequest = decryptRelayRequest(rawRelayRequest);
         
         vars.relayRequestId = GsnUtils.getRelayRequestID(relayRequest, signature);
@@ -371,8 +373,6 @@ contract RelayHub is IRelayHub, Ownable, ERC165 {
 
         (vars.gasAndDataLimits, vars.maxPossibleGas) =
             verifyGasAndDataLimits(maxAcceptanceBudget, relayRequest, vars.initialGasLeft);
-
-        RelayHubValidator.verifyTransactionPacking(domainSeparatorName,relayRequest,signature,approvalData);
 
     {
 

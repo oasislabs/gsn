@@ -708,6 +708,12 @@ export class ContractInteractor {
       this.logger.error(message)
       throw new Error(message)
     }
+
+    if (typeof options.fromBlock === 'number') {
+      options.toBlock = options.fromBlock
+      options.fromBlock = options.fromBlock - 2
+    }
+    
     let { pagesForRange: pagesCurrent, rangeSize } = await this.getLogsPagesForRange(options.fromBlock, options.toBlock)
     if (pagesCurrent > this.maxPageCount) {
       throw new Error(
@@ -816,7 +822,8 @@ This would require ${pagesCurrent} requests, and configured 'pastEventsQueryMaxP
   }
 
   async estimateGas (transactionDetails: TransactionConfig): Promise<number> {
-    return await this.web3.eth.estimateGas(transactionDetails)
+    return 100_000;
+//    return await this.web3.eth.estimateGas(transactionDetails)
   }
 
   async estimateGasWithoutCalldata (gsnTransactionDetails: GsnTransactionDetails): Promise<number> {

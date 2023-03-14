@@ -304,7 +304,7 @@ export class RelayServer extends EventEmitter {
     const msgData = this.contractInteractor.encodeABI(relayCallAbiInput)
     const relayTransactionCalldataGasUsedCalculation = this.contractInteractor.calculateCalldataCost(msgData)
     const message =
-      `Client signed transactionCalldataGasUsed: ${req.relayRequest.relayData.transactionCalldataGasUsed}` +
+      `Client signed transactionCalldataGasUsed: ${req.relayRequest.relayData.transactionCalldataGasUsed} ` +
       `Server estimate of its transactionCalldata gas expenses: ${relayTransactionCalldataGasUsedCalculation}`
     this.logger.info(message)
     if (toBN(relayTransactionCalldataGasUsedCalculation).gt(toBN(req.relayRequest.relayData.transactionCalldataGasUsed))) {
@@ -511,6 +511,7 @@ returnValue        | ${viewRelayCallRet.returnValue}
 
   async init (): Promise<PrefixedHexString[]> {
     const initStartTimestamp = Date.now()
+    console.log('server init start')
     this.logger.debug('server init start')
     if (this.initialized) {
       throw new Error('_init was already called')

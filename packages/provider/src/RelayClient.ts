@@ -349,6 +349,8 @@ export class RelayClient {
     this.logger.info(`attempting relay: ${JSON.stringify(relayInfo)} transaction: ${JSON.stringify(relayRequest)}`)
     await this.fillRelayInfo(relayRequest, relayInfo)
     const httpRequest = await this._prepareRelayHttpRequest(relayRequest, relayInfo)
+    console.log(`attempting relay: ${JSON.stringify(relayInfo)} transaction: ${JSON.stringify(relayRequest)}`)
+    await this.fillRelayInfo(relayRequest, relayInfo)
     this.emit(new GsnValidateRequestEvent())
 
     const error = await this._verifyViewCallSuccessful(relayInfo, asRelayCallAbi(httpRequest), false)
@@ -473,10 +475,16 @@ export class RelayClient {
   fillRelayInfo (relayRequest: RelayRequest, relayInfo: RelayInfo): void {
     relayRequest.relayData.relayWorker = relayInfo.pingResponse.relayWorkerAddress
     // cannot estimate before relay info is filled in
-    relayRequest.relayData.transactionCalldataGasUsed =
-      this.dependencies.contractInteractor.estimateCalldataCostForRequest(relayRequest, this.config)
+    this.calculateCalldataCost(relayRequest)
   }
 
+  calculateCalldataCost(relayRequest: RelayRequest): void {
+    relayRequest.relayData.transactionCalldataGasUsed =
+      this.dependencies.contractInteractor.estimateCalldataCostForRequest(relayRequest, this.config)
+    console.log("transactionCalldataGasUsed: ", relayRequest.relayData.transactionCalldataGasUsed)
+  }
+
+  
   async _prepareRelayHttpRequest (
     relayRequest: RelayRequest,
     relayInfo: RelayInfo
@@ -520,6 +528,8 @@ export class RelayClient {
       throw new Error('actual approvalData larger than maxApprovalDataLength')
     }
 
+    // data field has been changed, need to re-calculate calldata cost
+    this.calculateCalldataCost(relayRequest)
     // max nonce is not signed, as contracts cannot access addresses' nonces.
     const relayLastKnownNonce = await this.dependencies.contractInteractor.getTransactionCount(relayInfo.pingResponse.relayWorkerAddress)
     const relayMaxNonce = relayLastKnownNonce + this.config.maxRelayNonceGap
