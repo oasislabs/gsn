@@ -1,5 +1,5 @@
 {
-  "name": "@opengsn/contracts",
+  "name": "@oasislabs/opengsn-contracts",
   "license": "GPL-3.0-only",
   "version": "3.0.0-beta.2",
   "main": "types/truffle-contracts/index.d.ts",

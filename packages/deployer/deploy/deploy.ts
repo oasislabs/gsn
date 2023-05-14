@@ -116,7 +116,7 @@ export default async function deploymentFunc (hre: HardhatRuntimeEnvironment): P
   console.log("sleep 20 seconds to get contracts creation confirmed...")
   await sleep(20000)
   
-  await applyDeploymentConfig(hre)
+//  await applyDeploymentConfig(hre)
 
   let deployedPm: DeployResult
   if (env.deploymentConfiguration.deployTestPaymaster) {
@@ -125,11 +125,11 @@ export default async function deploymentFunc (hre: HardhatRuntimeEnvironment): P
     await setField(deployments, 'TestPaymasterEverythingAccepted', 'getRelayHub', 'setRelayHub', relayHub.address, deployer)
     await setField(deployments, 'TestPaymasterEverythingAccepted', 'getTrustedForwarder', 'setTrustedForwarder', deployedForwarder.address, deployer)
 
-    const paymasterBalance = await deployments.read(hubContractName, 'balanceOf', deployedPm.address)
-    console.log('current paymaster balance=', formatEther(paymasterBalance))
+    // const paymasterBalance = await deployments.read(hubContractName, 'balanceOf', deployedPm.address)
+    // console.log('current paymaster balance=', formatEther(paymasterBalance))
     const depositValue = parseEther(env.deploymentConfiguration.paymasterDeposit)
 
-    if (paymasterBalance.toString() === '0') {
+//    if (paymasterBalance.toString() === '0') {
       console.log('depositing in paymaster', formatEther(depositValue))
       await deployments.execute(hubContractName, {
         from: deployer,
@@ -137,7 +137,7 @@ export default async function deploymentFunc (hre: HardhatRuntimeEnvironment): P
         log: true
       }, 'depositFor', deployedPm.address)
     }
-  }
+//  }
 
   await printRelayInfo(hre)
 }

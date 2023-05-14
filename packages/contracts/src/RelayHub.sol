@@ -41,7 +41,7 @@ contract RelayHub is IRelayHub, Ownable, ERC165 {
 
     address private constant DRY_RUN_ADDRESS = 0x0000000000000000000000000000000000000000;
     address private constant ZERO_ADDRESS = 0x0000000000000000000000000000000000000000;
-
+    
     /// @inheritdoc IRelayHub
     function versionHub() override virtual public pure returns (string memory){
         return "3.0.0-beta.2+opengsn.hub.irelayhub";
@@ -276,7 +276,6 @@ contract RelayHub is IRelayHub, Ownable, ERC165 {
         }
     }
 
-    
     struct RelayCallData {
         bool success;
         bytes4 functionSelector;
@@ -298,6 +297,7 @@ contract RelayHub is IRelayHub, Ownable, ERC165 {
         bytes relayCallStatus;
     }
 
+        
     /// @inheritdoc IRelayHub
     function relayCall(
         string calldata domainSeparatorName,
@@ -414,29 +414,25 @@ contract RelayHub is IRelayHub, Ownable, ERC165 {
         }
     }
     {
-        /*
+
         if (!vars.success) {
             //Failure cases where the PM doesn't pay
             if (vars.status == RelayCallStatus.RejectedByPreRelayed ||
-                    (vars.innerGasUsed <= vars.gasAndDataLimits.acceptanceBudget + relayRequest.relayData.transactionCalldataGasUsed) && (
+                (vars.innerGasUsed <= vars.gasAndDataLimits.acceptanceBudget + relayRequest.relayData.transactionCalldataGasUsed) && (
                     vars.status == RelayCallStatus.RejectedByForwarder ||
                     vars.status == RelayCallStatus.RejectedByRecipientRevert  //can only be thrown if rejectOnRecipientRevert==true
                 )) {
+
                 emit TransactionRejectedByPaymaster(
-                    vars.relayManager,
-                    relayRequest.relayData.paymaster,
-                    vars.relayRequestId,
-                    relayRequest.request.from,
-                    relayRequest.request.to,
-                    msg.sender,
-                    vars.functionSelector,
-                    vars.innerGasUsed,
-                    vars.relayedCallReturnValue);
+                 vars.relayManager,
+                 relayRequest.relayData.paymaster,
+                 vars.relayRequestId,
+                 msg.sender
+                 );
+                
                 return (false, 0, vars.status, vars.relayedCallReturnValue);
             }
         }
-        */
-        
         // We now perform the actual charge calculation, based on the measured gas used
         vars.gasUsed = relayRequest.relayData.transactionCalldataGasUsed + (vars.initialGasLeft - aggregateGasleft()) + config.gasOverhead;
         charge = calculateCharge(vars.gasUsed, relayRequest.relayData);

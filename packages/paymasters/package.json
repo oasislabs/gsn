@@ -1,5 +1,5 @@
 {
-  "name": "@opengsn/paymasters",
+  "name": "@oasislabs-opengsn/paymasters",
   "license": "GPL-3.0-only",
   "version": "3.0.0-beta.2",
   "scripts": {
@@ -29,11 +29,11 @@
     "access": "public"
   },
   "dependencies": {
-    "@metamask/eth-sig-util": "^4.0.1",
-    "@opengsn/common": "^3.0.0-beta.2",
-    "@opengsn/contracts": "^3.0.0-beta.2",
-    "@opengsn/dev": "^3.0.0-beta.2",
-    "@opengsn/provider": "^3.0.0-beta.2",
+      "@metamask/eth-sig-util": "^4.0.1",
+      "@opengsn/common": "npm:@oasislabs-opengsn/common@^3.0.0-beta.2",
+      "@opengsn/contracts": "npm:@oasislabs-opengsn/contracts@^3.0.0-beta.2",      
+      "@opengsn/dev": "^3.0.0-beta.2",
+      "@opengsn/provider": "npm:@oasislabs-opengsn/provider@^3.0.0-beta.2",
     "@openzeppelin/contracts": "^4.2.0",
     "@uniswap/v3-periphery": "^1.1.1",
     "ethereumjs-util": "^7.1.0",

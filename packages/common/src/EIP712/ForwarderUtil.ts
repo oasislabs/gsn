@@ -28,6 +28,7 @@ export async function registerForwarderForGsn (domainSeparatorName: string, forw
   }
 
   logger?.info(`Registering request type ${GsnRequestType.typeName} with suffix: ${GsnRequestType.typeSuffix}`)
+  console.log(`Registering request type ${GsnRequestType.typeName} with suffix: ${GsnRequestType.typeSuffix}`)
   await logTx(forwarder.methods.registerRequestType(
     GsnRequestType.typeName,
     GsnRequestType.typeSuffix

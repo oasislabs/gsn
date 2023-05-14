@@ -270,6 +270,7 @@ export class RelayClient {
         pingErrors: new Map<string, Error>()
       }
     }
+    /*
     if (this.config.performDryRunViewRelayCall) {
       const dryRunError = await this._verifyDryRunSuccessful(relayRequest)
       if (dryRunError != null) {
@@ -281,7 +282,7 @@ export class RelayClient {
         }
       }
     }
-
+    */
     const relaySelectionManager = await new RelaySelectionManager(gsnTransactionDetails, this.dependencies.knownRelaysManager, this.dependencies.httpClient, this.dependencies.pingFilter, this.logger, this.config).init()
     const count = relaySelectionManager.relaysLeft().length
     this.emit(new GsnDoneRefreshRelaysEvent(count))
@@ -297,6 +298,7 @@ export class RelayClient {
       const relayHub = this.dependencies.contractInteractor.getDeployment().relayHubAddress ?? ''
       const activeRelay = await relaySelectionManager.selectNextRelay(relayHub, paymaster)
       if (activeRelay != null) {
+        console.log(`activeRelay url: ${activeRelay.relayInfo.relayUrl}`)
         this.emit(new GsnNextRelayEvent(activeRelay.relayInfo.relayUrl))
         relayingAttempt = await this._attemptRelay(activeRelay, relayRequest)
           .catch(error => ({ error }))
@@ -466,7 +468,7 @@ export class RelayClient {
         publicKey: this.publicKey
       }
     }
-
+    console.log(`_prepareRelayRequest: relayReuest: ${JSON.stringify(relayRequest)}`)
     // put paymasterData into struct before signing
     relayRequest.relayData.paymasterData = await this.dependencies.asyncPaymasterData(relayRequest)
     return relayRequest
@@ -490,7 +492,33 @@ export class RelayClient {
     relayInfo: RelayInfo
   ): Promise<RelayTransactionRequest> {
     this.emit(new GsnSignRequestEvent())
-    const signature = await this.dependencies.accountManager.sign(this.config.domainSeparatorName, relayRequest)
+    console.log(`_prepareRelayHttpRequest: ${JSON.stringify(relayInfo)} transaction: ${JSON.stringify(relayRequest)}`)
+    console.log(`_prepareRelayHttpRequest: domain separate name: ${this.config.domainSeparatorName}`)
+
+    const originRelayRequest: RelayRequest = {
+      request : {
+        to: relayRequest.request.to,
+        data: relayRequest.request.data,
+        from: relayRequest.request.from,
+        value: relayRequest.request.value,
+        nonce: relayRequest.request.nonce,
+        gas: relayRequest.request.gas,
+        validUntilTime: relayRequest.request.validUntilTime
+      },
+      relayData: {
+        relayWorker: relayRequest.relayData.relayWorker,
+        transactionCalldataGasUsed: relayRequest.relayData.transactionCalldataGasUsed,
+        paymasterData: relayRequest.relayData.paymasterData,
+        maxFeePerGas: relayRequest.relayData.maxFeePerGas,
+        maxPriorityFeePerGas: relayRequest.relayData.maxPriorityFeePerGas,
+        paymaster: relayRequest.relayData.paymaster,
+        clientId: relayRequest.relayData.clientId,
+        forwarder: relayRequest.relayData.forwarder,
+        nonce: relayRequest.relayData.nonce,
+        publicKey: relayRequest.relayData.publicKey
+      }
+    }
+    
     const approvalData = await this.dependencies.asyncApprovalData(relayRequest)
 
     const encodedData = this.dependencies.contractInteractor.web3.eth.abi.encodeParameter(
@@ -519,6 +547,7 @@ export class RelayClient {
     relayRequest.request.data = hexlify(this.cipher.encrypt(nonce.slice(0, 15), arrayify(encodedData)))
     relayRequest.request.from = constants.ZERO_ADDRESS
     relayRequest.request.to = constants.ZERO_ADDRESS
+    
     if (toBuffer(relayRequest.relayData.paymasterData).length >
       this.config.maxPaymasterDataLength) {
       throw new Error('actual paymasterData larger than maxPaymasterDataLength')
@@ -530,6 +559,12 @@ export class RelayClient {
 
     // data field has been changed, need to re-calculate calldata cost
     this.calculateCalldataCost(relayRequest)
+
+    originRelayRequest.relayData.transactionCalldataGasUsed = relayRequest.relayData.transactionCalldataGasUsed
+
+    const signature = await this.dependencies.accountManager.sign(this.config.domainSeparatorName, originRelayRequest)
+    console.log(`_prepareRelayHttpRequest: signature: ${signature}`)
+   
     // max nonce is not signed, as contracts cannot access addresses' nonces.
     const relayLastKnownNonce = await this.dependencies.contractInteractor.getTransactionCount(relayInfo.pingResponse.relayWorkerAddress)
     const relayMaxNonce = relayLastKnownNonce + this.config.maxRelayNonceGap

@@ -124,11 +124,11 @@ export async function setField (deployments: DeploymentsExtension, contract: str
   console.log("sleep 20 seconds to wait previous transactions to get confirmed...")
   await sleep(20000)
 
-  const currentVal = await deployments.read(contract, options, getFunc)
-  if (currentVal.toString() !== val) {
-    console.log('calling', `${contract}.${setFunc}( ${val} )`)
+//  const currentVal = await deployments.read(contract, options, getFunc)
+//  if (currentVal.toString() !== val) {
+//    console.log('calling', `${contract}.${setFunc}( ${val} )`)
     await deployments.execute(contract, options, setFunc, val)
-  }
+//  }
 }
 
 async function getStakingInfo (hre: HardhatRuntimeEnvironment, env: Environment): Promise<{ stakingTokenAddress: string, stakingTokenValue: string }> {

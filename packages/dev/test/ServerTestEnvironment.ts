@@ -125,49 +125,51 @@ export class ServerTestEnvironment {
   async init (clientConfig: Partial<GSNConfig> = {}, relayHubConfig: Partial<RelayHubConfiguration> = {}, contractFactory?: (deployment: GSNContractsDeployment) => Promise<ContractInteractor>, HubContract?: any, relayRegistrationMaxAge = constants.yearInSec): Promise<void> {
     console.debug("I am init here!")
 //    this.testToken = await TestToken.new()
-    this.testToken = await TestToken.at("0x815c16FAC3863b0329F75eB8813f611FDAbDe9D0")
+    this.testToken = await TestToken.at("0xF6470B27D07F6Df8ba1114B14A4a4BE91Fd06100")
     console.log("TestToken address: ", this.testToken.address)
 
 //    this.stakeManager = await StakeManager.new(defaultEnvironment.maxUnstakeDelay, 0, 0, constants.BURN_ADDRESS, constants.BURN_ADDRESS)
-    this.stakeManager = await StakeManager.at("0x2a4e40EE69d2fC5012794aE443d115B364e490FC");
+    this.stakeManager = await StakeManager.at("0x5ae6Ad9A98235b5aF442eF8A0f817f0eC6dc5DB7");
     console.log("StakeManager address: ", this.stakeManager.address)
 
     
-    //    this.penalizer = await Penalizer.new(defaultEnvironment.penalizerConfiguration.penalizeBlockDelay, defaultEnvironment.penalizerConfiguration.penalizeBlockExpiration)
-    this.penalizer = await Penalizer.at("0x2D1D1DF9718DDfbD90f8019c1FD2257dFCdf8e5C");    
+//    this.penalizer = await Penalizer.new(defaultEnvironment.penalizerConfiguration.penalizeBlockDelay, defaultEnvironment.penalizerConfiguration.penalizeBlockExpiration)
+    this.penalizer = await Penalizer.at("0x0e23E9686F6038B92eA887a542a74905130dAE91");    
     console.log("Penalizer address: ", this.penalizer.address)
     
     // @ts-ignore - IRelayHub and RelayHub types are similar enough for tests to work
-    // this.relayHub = await deployHub(this.stakeManager.address, this.penalizer.address, constants.ZERO_ADDRESS, this.testToken.address, 1e18.toString(), relayHubConfig, defaultEnvironment, HubContract, relayRegistrationMaxAge)
-    this.relayHub = await RelayHub.at("0xf3807026Cb92804b2A124f36AC45a3134EF1b464");
+//    this.relayHub = await deployHub(this.stakeManager.address, this.penalizer.address, constants.ZERO_ADDRESS, this.testToken.address, 1e18.toString(), relayHubConfig, defaultEnvironment, HubContract, relayRegistrationMaxAge)
+    this.relayHub = await RelayHub.at("0x1c5bee21C532b2dC66D90bE63F9057E73677fd6D");
     console.log("RelayHub address: ", this.relayHub.address)
     
-    // this.forwarder = await Forwarder.new()
-    this.forwarder = await Forwarder.at("0xf5016F780f75d72355eBcCf7Bc5A9b4Ccf813bf1");
-    
+//    this.forwarder = await Forwarder.new()
+    this.forwarder = await Forwarder.at("0xDa1674dEe5F15F7D9AE2BeD259B6f0Dc707c87aE");    
     console.log("Forwarder address: ", this.forwarder.address)
 
     
-    //    this.recipient = await TestRecipient.new(this.forwarder.address)
-    this.recipient = await TestRecipient.at("0xa3E9E39bCF2c4CB945868d6BE0B015CA17144273");
+//    this.recipient = await TestRecipient.new(this.forwarder.address)
+    this.recipient = await TestRecipient.at("0x5B1679E5156e25B3C2aA02dcFc87796db9A57Cd1");
     console.log("TestRecipient address: ", this.recipient.address)
 
 
-    // this.paymaster = await TestPaymasterEverythingAccepted.new()
-    this.paymaster = await TestPaymasterEverythingAccepted.at("0xCA41be1a194d2425910bD6D7dee3E0EE21747762");    
+//    this.paymaster = await TestPaymasterEverythingAccepted.new()
+    this.paymaster = await TestPaymasterEverythingAccepted.at("0xF73Df2429c6C161798561287DeA67E9c6A84F35B");    
     console.log("PayMaster address: ", this.paymaster.address)
 
+    /*
+    await registerForwarderForGsn(defaultGsnConfig.domainSeparatorName, this.forwarder)
+    await sleep(15000)
     
-    //    await registerForwarderForGsn(defaultGsnConfig.domainSeparatorName, this.forwarder)
-    //    await sleep(15000)
-    
-    //    await this.paymaster.setTrustedForwarder(this.forwarder.address)
-    // await this.paymaster.setRelayHub(this.relayHub.address)
-    //    await this.paymaster.deposit({ value: this.web3.utils.toWei('1', 'ether') })
+    await this.paymaster.setTrustedForwarder(this.forwarder.address)
+    await this.paymaster.setRelayHub(this.relayHub.address)
+    await this.paymaster.deposit({ value: this.web3.utils.toWei('1', 'ether') })
 
-    //    await sleep(15000)
+    await sleep(15000)
+    */
+    console.log("finish deployment")
     
     this.encodedFunction = this.recipient.contract.methods.emitMessage('hello world').encodeABI()
+    console.log(" >>> encodedFunction: ", this.encodedFunction)
     const shared: Partial<GSNConfig> = {
       loggerConfiguration: { logLevel: 'debug' },
       paymasterAddress: this.paymaster.address
@@ -213,8 +215,10 @@ export class ServerTestEnvironment {
     latestBlock = await this.web3.eth.getBlock('latest')
     console.log("latestBlock1: ", latestBlock);
     await this.stakeAndAuthorizeHub(ether('1'), unstakeDelay)
+    
     // This run should call 'registerRelayServer' and 'addWorkers'
     await this.relayServer._worker(latestBlock)
+
     await sleep(20000)
     latestBlock = await this.web3.eth.getBlock('latest')
     console.log("latestBlock2: ", latestBlock);
@@ -330,7 +334,7 @@ export class ServerTestEnvironment {
       maxFeePerGas: toHex(100000000000),
       maxPriorityFeePerGas: toHex(100000000000)
     }
-
+    console.log("gsnTransactiondetails from:", this.gasLess)
     const mergedDeployment = Object.assign({}, this.relayClient.dependencies.contractInteractor.getDeployment(), overrideDeployment)
     const sandbox = sinon.createSandbox()
     try {

@@ -1,5 +1,5 @@
 {
-  "name": "@opengsn/provider",
+  "name": "@oasislabs/opengsn-provider",
   "version": "3.0.0-beta.2",
   "license": "Apache-2.0",
   "main": "dist/index.js",
@@ -25,7 +25,7 @@
     "@ethersproject/experimental": "^5.6.3",
     "@ethersproject/providers": "^5.6.5",
     "@metamask/eth-sig-util": "^4.0.1",
-    "@opengsn/common": "^3.0.0-beta.2",
+    "@opengsn/common": "npm:@oasislabs/opengsn-common@^3.0.0-beta.2",
     "abi-decoder": "^2.4.0",
     "deoxysii": "^0.0.2",
     "ethereumjs-util": "^7.1.0",

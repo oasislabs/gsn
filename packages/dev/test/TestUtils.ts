@@ -333,8 +333,8 @@ export async function deployHub (
   }
   const HubContract: RelayHubContract = hubContract ?? RelayHub
   const relayRegistrar = await RelayRegistrar.new(relayRegistrationMaxAge)
-
-  await sleep(20000)
+  console.log("relayRegistrar address: ", relayRegistrar.address)
+  await sleep(12000)
 
   const hub: RelayHubInstance = await HubContract.new(
     stakeManager,
@@ -343,7 +343,8 @@ export async function deployHub (
     relayRegistrar.address,
     relayHubConfiguration)
 
-  await sleep(20000)
+  console.log("relayHub address: ", hub.address)
+  await sleep(12000)
   
   await hub.setMinimumStakes([testToken], [testTokenMinimumStake])
 

@@ -51,6 +51,8 @@ async function getProvider (
     // provider-controlled private key
     from = commander.from
     console.log('using', from)
+    privateKey = '0x' + commander.privateKeyHex
+    console.log('privateKye is ', privateKey)
   } else if (mnemonic != null) {
     const hdwallet = EthereumHDKey.fromMasterSeed(
       Buffer.from(bip39.mnemonicToSeedSync(mnemonic))

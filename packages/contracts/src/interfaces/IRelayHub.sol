@@ -78,18 +78,12 @@ interface IRelayHub is IERC165 {
     /**
      * @notice Emitted when an attempt to relay a call fails and the `Paymaster` does not accept the transaction.
      * The actual relayed call was not executed, and the recipient not charged.
-     * @param reason contains a revert reason returned from preRelayedCall or forwarder.
      */
     event TransactionRejectedByPaymaster(
         address indexed relayManager,
         address indexed paymaster,
         bytes32 indexed relayRequestID,
-        address from,
-        address to,
-        address relayWorker,
-        bytes4 selector,
-        uint256 innerGasUsed,
-        bytes reason
+        address relayWorker
     );
 
     /**

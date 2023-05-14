@@ -2,6 +2,7 @@ import { HttpProvider } from 'web3-core'
 import { GSNConfig } from '@opengsn/provider/dist/GSNConfigurator'
 import { ServerConfigParams } from '@opengsn/relay/dist/ServerConfigParams'
 import { LocalhostOne, ServerTestEnvironment } from './ServerTestEnvironment'
+import { assertRelayAdded, getTemporaryWorkdirs, ServerWorkdirs } from './ServerTestUtils'
 
 import {
   GsnTransactionDetails,
@@ -30,7 +31,7 @@ contract('RelayServerIntegration', function (accounts: Truffle.Accounts) {
       const overrideParams: Partial<ServerConfigParams> = {
         alertedDelaySeconds
       }
-      await env.newServerInstance(overrideParams)
+      await env.newServerInstance(overrideParams, getTemporaryWorkdirs())
       await env.clearServerStorage()
       
       const overrideDetails: Partial<GsnTransactionDetails> = {}

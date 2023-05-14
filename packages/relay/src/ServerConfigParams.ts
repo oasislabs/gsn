@@ -560,8 +560,8 @@ export async function resolveServerConfig (config: Partial<ServerConfigParams>, 
   if (config.relayHubAddress == null) {
     error('missing param: must have relayHubAddress')
   }
-  if (config.url == null) error('missing param: url')
-  if (config.workdir == null) error('missing param: workdir')
+//  if (config.url == null) error('missing param: url')
+//  if (config.workdir == null) error('missing param: workdir')
   if (config.ownerAddress == null || config.ownerAddress === constants.ZERO_ADDRESS) error('missing param: ownerAddress')
   if (config.managerStakeTokenAddress == null || config.managerStakeTokenAddress === constants.ZERO_ADDRESS) error('missing param: managerStakeTokenAddress')
   const finalConfig = { ...serverDefaultConfiguration, ...config }
