@@ -305,6 +305,7 @@ export class RelayClient {
         if (relayingAttempt.auditPromise != null) {
           auditPromises.push(relayingAttempt.auditPromise)
         }
+        console.log(`relayingAttempt: ${JSON.stringify(relayingAttempt)}`);
         if (relayingAttempt.transaction == null) {
           relayingErrors.set(activeRelay.relayInfo.relayUrl, relayingAttempt.error ?? new Error('No error reason was given'))
           if (relayingAttempt.isRelayError ?? false) {
