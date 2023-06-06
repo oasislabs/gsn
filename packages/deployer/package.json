@@ -5,7 +5,7 @@
   "author": "Dror Tirosh",
   "license": "MIT",
   "scripts": {
-    "deploy": "yarn --cwd ../dev solpp; hardhat deploy",
+    "deploy": "yarn --cwd ../dev solpp; hardhat deploy --network sapphire",
     "export": "hardhat export",
     "verify": "hardhat etherscan-verify --force-license  --license GPL-3.0",
     "depinfo": "hardhat run ./src/depinfo.ts",
@@ -18,13 +18,14 @@
     "@nomiclabs/hardhat-ethers": "npm:hardhat-deploy-ethers",
     "@nomiclabs/hardhat-etherscan": "^2.1.8",
     "@nomiclabs/hardhat-web3": "^2.0.0",
+    "@oasisprotocol/sapphire-hardhat": "^1.0.3",
     "@opengsn/common": "^3.0.0-beta.2",
     "@opengsn/provider": "^3.0.0-beta.2",
     "axios": "^0.27.2",
     "chai": "^4.3.6",
     "chalk": "^4.1.2",
     "ethers": "^5.5.1",
-    "hardhat": "^2.6.8",
+    "hardhat": "^2.13.0",
     "hardhat-deploy": "^0.11.5"
   }
 }

@@ -20,7 +20,7 @@ library GsnUtils {
      * @param relayRequest The `RelayRequest` for which an ID is being calculated.
      * @param signature The signature for the `RelayRequest`. It is not validated here and may even remain empty.
      */
-    function getRelayRequestID(GsnTypes.RelayRequest calldata relayRequest, bytes calldata signature)
+    function getRelayRequestID(GsnTypes.RelayRequest memory relayRequest, bytes calldata signature)
     internal
     pure
     returns (bytes32) {

@@ -41,7 +41,7 @@ library RelayHubValidator {
     // helper method for verifyTransactionPacking:
     // size (in bytes) of the given "bytes" parameter. size include the length (32-byte word),
     // and actual data size, rounded up to full 32-byte words
-    function dynamicParamSize(bytes calldata buf) internal pure returns (uint256) {
+    function dynamicParamSize(bytes memory buf) internal pure returns (uint256) {
         return 32 + ((buf.length + 31) & (type(uint256).max - 31));
     }
 }

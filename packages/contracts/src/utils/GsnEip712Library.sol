@@ -21,6 +21,7 @@ library GsnEip712Library {
 
     bytes public constant RELAYDATA_TYPE = "RelayData(uint256 maxFeePerGas,uint256 maxPriorityFeePerGas,uint256 transactionCalldataGasUsed,address relayWorker,address paymaster,address forwarder,bytes paymasterData,uint256 clientId)";
 
+    
     string public constant RELAY_REQUEST_NAME = "RelayRequest";
     string public constant RELAY_REQUEST_SUFFIX = string(abi.encodePacked("RelayData relayData)", RELAYDATA_TYPE));
 
@@ -29,7 +30,6 @@ library GsnEip712Library {
 
     bytes32 public constant RELAYDATA_TYPEHASH = keccak256(RELAYDATA_TYPE);
     bytes32 public constant RELAY_REQUEST_TYPEHASH = keccak256(RELAY_REQUEST_TYPE);
-
 
     struct EIP712Domain {
         string name;
@@ -96,6 +96,7 @@ library GsnEip712Library {
         bool callSuccess,
         bytes memory ret
     ) {
+        
         (bytes memory suffixData) = splitRequest(relayRequest);
         bytes32 _domainSeparator = domainSeparator(domainSeparatorName, relayRequest.relayData.forwarder);
         /* solhint-disable-next-line avoid-low-level-calls */
@@ -143,6 +144,7 @@ library GsnEip712Library {
                 req.verifyingContract));
     }
 
+    
     function hashRelayData(GsnTypes.RelayData calldata req) internal pure returns (bytes32) {
         return keccak256(abi.encode(
                 RELAYDATA_TYPEHASH,
@@ -153,7 +155,6 @@ library GsnEip712Library {
                 req.paymaster,
                 req.forwarder,
                 keccak256(req.paymasterData),
-                req.clientId
-            ));
+                req.clientId));
     }
 }

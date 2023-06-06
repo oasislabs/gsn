@@ -43,7 +43,7 @@ const RelayDataType = [
   { name: 'paymaster', type: 'address' },
   { name: 'forwarder', type: 'address' },
   { name: 'paymasterData', type: 'bytes' },
-  { name: 'clientId', type: 'uint256' }
+  { name: 'clientId', type: 'uint256' },
 ]
 
 const ForwardRequestType = [
@@ -114,7 +114,16 @@ export class TypedRequestData implements TypedMessage<Types> {
     // other params are inside "relayData" sub-type
     this.message = {
       ...relayRequest.request,
-      relayData: relayRequest.relayData
+      relayData: {
+        maxFeePerGas : relayRequest.relayData.maxFeePerGas,
+        maxPriorityFeePerGas : relayRequest.relayData.maxPriorityFeePerGas,
+        transactionCalldataGasUsed : relayRequest.relayData.transactionCalldataGasUsed,
+        relayWorker : relayRequest.relayData.relayWorker,
+        paymaster : relayRequest.relayData.paymaster,
+        forwarder : relayRequest.relayData.forwarder,
+        paymasterData : relayRequest.relayData.paymasterData,
+        clientId : relayRequest.relayData.clientId
+      }
     }
   }
 }

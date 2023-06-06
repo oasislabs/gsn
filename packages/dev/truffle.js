@@ -15,12 +15,23 @@ if (fs.existsSync(secretMnemonicFile)) {
   secretMnemonic = fs.readFileSync(secretMnemonicFile, { encoding: 'utf8' })
 }
 
+const privateKey = ''
+
 module.exports = {
   contracts_build_directory: '../cli/src/compiled',
   contracts_directory: '../contracts/solpp',
 
   networks: {
-
+    sapphire: {
+      url: "https://testnet.sapphire.oasis.dev:8545",
+      provider: function() {
+        return new HDWalletProvider(privateKey, "https://testnet.sapphire.oasis.dev");
+      },
+      gas: 4700000,
+      port: 8545,
+      host: "testnet.sapphire.oasis.dev",
+      network_id: '*'
+    },
     development: {
       provider: undefined,
       verbose: process.env.VERBOSE,

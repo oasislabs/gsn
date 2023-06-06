@@ -35,6 +35,7 @@ import Penalizer from './compiled/Penalizer.json'
 import Paymaster from './compiled/TestPaymasterEverythingAccepted.json'
 import Forwarder from './compiled/Forwarder.json'
 import TestWrappedNativeToken from './compiled/TestWrappedNativeToken.json'
+import TestRecipient from './compiled/TestRecipient.json'
 
 import { KeyManager } from '@opengsn/relay/dist/KeyManager'
 import { ServerConfigParams } from '@opengsn/relay/dist/ServerConfigParams'
@@ -75,6 +76,7 @@ interface DeployOptions {
   relayHubAddress?: string
   relayRegistryAddress?: string
   stakeManagerAddress?: string
+  testRecipientAddress?: string
   deployTestToken?: boolean
   stakingTokenAddress?: string
   minimumTokenStake: number | IntString
@@ -131,6 +133,9 @@ export class CommandsLogic {
       timeout: 120000
     })
     provider.sendAsync = provider.send.bind(provider)
+    if (privateKey === null) {
+      privateKey = process.env.PRIVATE_KEY
+    }
     if (mnemonic != null || privateKey != null) {
       let hdWalletConstructorArguments: any
       if (mnemonic != null) {
@@ -186,7 +191,7 @@ export class CommandsLogic {
     return response.ready
   }
 
-  async waitForRelay (relayUrl: string, timeout = 60): Promise<void> {
+  async waitForRelay (relayUrl: string, timeout = 240): Promise<void> {
     console.error(`Will wait up to ${timeout}s for the relay to be ready`)
 
     const endTime = Date.now() + timeout * 1000
@@ -226,18 +231,12 @@ export class CommandsLogic {
     if (this.deployment == null) {
       throw new Error('Deployment is not initialized!')
     }
-    const currentBalance = await this.contractInteractor.hubBalanceOf(paymaster)
     const targetAmount = new BN(amount)
-    if (currentBalance.lt(targetAmount)) {
-      const value = targetAmount.sub(currentBalance)
-      await this.contractInteractor.hubDepositFor(paymaster, {
-        value,
-        from
-      })
-      return targetAmount
-    } else {
-      return currentBalance
-    }
+    await this.contractInteractor.hubDepositFor(paymaster, {
+      value: targetAmount,
+      from
+    })
+    return targetAmount
   }
 
   async registerRelay (options: RegisterOptions): Promise<RegistrationResult> {
@@ -327,6 +326,7 @@ export class CommandsLogic {
           console.debug(`Waiting ${options.sleepMs}ms ${i}/${options.sleepCount} for relayer to set ${options.from} as owner`)
           await sleep(options.sleepMs)
           const newStakeInfo = (await stakeManager.getStakeInfo(relayAddress))[0]
+          console.log(`new StakeInfo is ${newStakeInfo}`)
           if (newStakeInfo.owner !== constants.ZERO_ADDRESS && isSameAddress(newStakeInfo.owner, options.from)) {
             console.log('RelayServer successfully set its owner on the StakeManager')
             break
@@ -578,9 +578,15 @@ export class CommandsLogic {
       ]
     }, deployOptions.relayHubAddress, { ...options }, deployOptions.skipConfirmation)
 
-    if (!isSameAddress(await rInstance.methods.getRelayRegistrar().call(), rrInstance.options.address)) {
-      await rInstance.methods.setRegistrar(rrInstance.options.address).send({ ...options })
-    }
+    const rpInstance = await this.getContractInstance(TestRecipient, {
+      arguments: [
+        fInstance.options.address
+      ]
+    }, deployOptions.testRecipientAddress, { ...options }, deployOptions.skipConfirmation)
+
+    //    if (!isSameAddress(await rInstance.methods.getRelayRegistrar().call(), rrInstance.options.address)) {
+    //      await rInstance.methods.setRegistrar(rrInstance.options.address).send({ ...options })
+    //    }
 
     let pmInstance: Contract | undefined
     if (deployOptions.deployPaymaster ?? false) {

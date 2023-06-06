@@ -20,7 +20,8 @@ import {
   defaultEnvironment,
   ether,
   registerForwarderForGsn,
-  removeHexPrefix
+  removeHexPrefix,
+  sleep
 } from '@opengsn/common'
 import {
   IERC2771RecipientInstance,
@@ -61,6 +62,7 @@ const StakeManager = artifacts.require('StakeManager')
 const TestToken = artifacts.require('TestToken')
 const TestRecipient = artifacts.require('TestRecipient')
 const TestPaymasterEverythingAccepted = artifacts.require('TestPaymasterEverythingAccepted')
+const RelayHub = artifacts.require('RelayHub')
 
 abiDecoder.addABI(RelayHubABI)
 abiDecoder.addABI(StakeManagerABI)
@@ -109,7 +111,7 @@ export class ServerTestEnvironment {
   constructor (provider: HttpProvider, accounts: Address[]) {
     this.provider = provider
     this.web3 = new Web3(this.provider)
-    this.relayOwner = accounts[4]
+    this.relayOwner = accounts[0]
   }
 
   /**
@@ -122,26 +124,30 @@ export class ServerTestEnvironment {
    */
   async init (clientConfig: Partial<GSNConfig> = {}, relayHubConfig: Partial<RelayHubConfiguration> = {}, contractFactory?: (deployment: GSNContractsDeployment) => Promise<ContractInteractor>, HubContract?: any, relayRegistrationMaxAge = constants.yearInSec): Promise<void> {
     this.testToken = await TestToken.new()
-    this.stakeManager = await StakeManager.new(defaultEnvironment.maxUnstakeDelay, 0, 0, constants.BURN_ADDRESS, constants.BURN_ADDRESS)
+    this.stakeManager = await StakeManager.new(defaultEnvironment.maxUnstakeDelay, 0, 0, constants.BURN_ADDRESS, constants.BURN_ADDRESS)    
     this.penalizer = await Penalizer.new(defaultEnvironment.penalizerConfiguration.penalizeBlockDelay, defaultEnvironment.penalizerConfiguration.penalizeBlockExpiration)
     // @ts-ignore - IRelayHub and RelayHub types are similar enough for tests to work
     this.relayHub = await deployHub(this.stakeManager.address, this.penalizer.address, constants.ZERO_ADDRESS, this.testToken.address, 1e18.toString(), relayHubConfig, defaultEnvironment, HubContract, relayRegistrationMaxAge)
     this.forwarder = await Forwarder.new()
     this.recipient = await TestRecipient.new(this.forwarder.address)
     this.paymaster = await TestPaymasterEverythingAccepted.new()
-    await registerForwarderForGsn(defaultGsnConfig.domainSeparatorName, this.forwarder)
 
+    await registerForwarderForGsn(defaultGsnConfig.domainSeparatorName, this.forwarder)
+    await sleep(15000)
+    
     await this.paymaster.setTrustedForwarder(this.forwarder.address)
     await this.paymaster.setRelayHub(this.relayHub.address)
     await this.paymaster.deposit({ value: this.web3.utils.toWei('1', 'ether') })
 
+    await sleep(15000)
+    
     this.encodedFunction = this.recipient.contract.methods.emitMessage('hello world').encodeABI()
     const shared: Partial<GSNConfig> = {
-      loggerConfiguration: { logLevel: 'error' },
+      loggerConfiguration: { logLevel: 'debug' },
       paymasterAddress: this.paymaster.address
     }
     if (contractFactory == null) {
-      const logger = createServerLogger('error', '', '')
+      const logger = createServerLogger('debug', '', '')
       const maxPageSize = Number.MAX_SAFE_INTEGER
       this.contractInteractor = new ContractInteractor({
         environment: defaultEnvironment,
@@ -175,11 +181,16 @@ export class ServerTestEnvironment {
     await this.relayServer.init()
     // initialize server - gas price, stake, owner, etc, whatever
     let latestBlock = await this.web3.eth.getBlock('latest')
-
     await this.relayServer._worker(latestBlock)
+
     latestBlock = await this.web3.eth.getBlock('latest')
     await this.stakeAndAuthorizeHub(ether('1'), unstakeDelay)
+    
     // This run should call 'registerRelayServer' and 'addWorkers'
+    await this.relayServer._worker(latestBlock)
+
+    await sleep(20000)
+    latestBlock = await this.web3.eth.getBlock('latest')
     const receipts = await this.relayServer._worker(latestBlock)
     await assertRelayAdded(receipts, this.relayServer) // sanity check
     latestBlock = await this.web3.eth.getBlock('latest')
@@ -204,14 +215,18 @@ export class ServerTestEnvironment {
 
   async stakeAndAuthorizeHub (stake: BN, unstakeDelay: number): Promise<void> {
     await this.testToken.mint(stake, { from: this.relayOwner })
+    await sleep(20000)
     await this.testToken.approve(this.stakeManager.address, stake, { from: this.relayOwner })
+    await sleep(20000)
     // Now owner can do its operations
     await this.stakeManager.stakeForRelayManager(this.testToken.address, this.relayServer.managerAddress, unstakeDelay, stake, {
       from: this.relayOwner
     })
+    await sleep(20000)
     await this.stakeManager.authorizeHubByOwner(this.relayServer.managerAddress, this.relayHub.address, {
       from: this.relayOwner
     })
+    await sleep(20000)
   }
 
   newServerInstanceNoFunding (config: Partial<ServerConfigParams> = {}, serverWorkdirs?: ServerWorkdirs): void {
@@ -222,7 +237,7 @@ export class ServerTestEnvironment {
       checkInterval: 100,
       workdir: serverWorkdirs?.workdir
     }
-    const logger = createServerLogger('error', '', '')
+    const logger = createServerLogger('debug', '', '')
     const managerKeyManager = this._createKeyManager(serverWorkdirs?.managerWorkdir)
     const workersKeyManager = this._createKeyManager(serverWorkdirs?.workersWorkdir)
     const txStoreManager = new TxStoreManager({
@@ -276,11 +291,10 @@ export class ServerTestEnvironment {
       from: this.gasLess,
       to: this.recipient.address,
       data: this.encodedFunction,
-      gas: toHex(1000000),
-      maxFeePerGas: toHex(20000000000),
-      maxPriorityFeePerGas: toHex(20000000000)
+      gas: toHex(150000),
+      maxFeePerGas: toHex(100000000000),
+      maxPriorityFeePerGas: toHex(100000000000)
     }
-
     const mergedDeployment = Object.assign({}, this.relayClient.dependencies.contractInteractor.getDeployment(), overrideDeployment)
     const sandbox = sinon.createSandbox()
     try {
@@ -291,7 +305,7 @@ export class ServerTestEnvironment {
       // eslint-disable-next-line @typescript-eslint/return-await,@typescript-eslint/promise-function-async
       return this.relayClient._prepareRelayRequest(mergedTransactionDetail).then(relayRequest => {
         this.relayClient.fillRelayInfo(relayRequest, relayInfo)
-        return this.relayClient._prepareRelayHttpRequest(relayRequest, relayInfo)
+        return this.relayClient._prepareRelayHttpRequest(relayRequest, relayInfo)        
       })
     } finally {
       sandbox.restore()

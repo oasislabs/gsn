@@ -51,8 +51,9 @@ export class KnownRelaysManager {
   async getRelayInfoForManagers (): Promise<RegistrarRelayInfo[]> {
     const relayInfos: RegistrarRelayInfo[] = await this.contractInteractor.getRegisteredRelays()
     this.logger.info(`fetchRelaysAdded: found ${relayInfos.length} relays`)
-
+    
     const blacklistFilteredRelayInfos = relayInfos.filter((info: RegistrarRelayInfo) => {
+      this.logger.info(` relay url: ${info.relayUrl}`)
       const isHostBlacklisted = this.config.blacklistedRelays.find(relay => info.relayUrl.toLowerCase().includes(relay.toLowerCase())) != null
       const isManagerBlacklisted = this.config.blacklistedRelays.find(relay => isSameAddress(info.relayManager, relay)) != null
       return !(isHostBlacklisted || isManagerBlacklisted)

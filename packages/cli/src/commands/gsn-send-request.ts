@@ -51,6 +51,7 @@ async function getProvider (
     // provider-controlled private key
     from = commander.from
     console.log('using', from)
+    privateKey = '0x' + commander.privateKeyHex
   } else if (mnemonic != null) {
     const hdwallet = EthereumHDKey.fromMasterSeed(
       Buffer.from(bip39.mnemonicToSeedSync(mnemonic))
@@ -135,9 +136,9 @@ async function getProvider (
     from,
     gas,
     gasPrice
-  })
+  });    
   console.log(receipt)
-
+  
   console.log(JSON.stringify(methodParams))
   console.log(web3Contract.options.address)
   process.exit(0)

@@ -50,6 +50,11 @@ import {
 } from './GsnEvents'
 import { bridgeProvider } from './WrapContract'
 
+import { arrayify, hexlify } from '@ethersproject/bytes'
+// @ts-expect-error missing declaration
+import deoxysii from 'deoxysii'
+import nacl from 'tweetnacl'
+
 // forwarder requests are signed with expiration time.
 
 // generate "approvalData" and "paymasterData" for a request.
@@ -103,6 +108,8 @@ export class RelayClient {
   config!: GSNConfig
   dependencies!: GSNDependencies
   private readonly rawConstructorInput: GSNUnresolvedConstructorInput
+  publicKey!: string
+  cipher!: deoxysii.AEAD
 
   private initialized = false
   logger!: LoggerInterface
@@ -156,6 +163,11 @@ export class RelayClient {
     if (!this.config.skipErc165Check) {
       await this.dependencies.contractInteractor._validateERC165InterfacesClient()
     }
+
+    const keypair = nacl.box.keyPair()
+    this.publicKey = hexlify(keypair.publicKey)
+    const sharedKey = await this.dependencies.contractInteractor.getHubSymmetricKey(this.publicKey)
+    this.cipher = new deoxysii.AEAD(arrayify(sharedKey))
   }
 
   /**
@@ -258,6 +270,7 @@ export class RelayClient {
         pingErrors: new Map<string, Error>()
       }
     }
+    /*
     if (this.config.performDryRunViewRelayCall) {
       const dryRunError = await this._verifyDryRunSuccessful(relayRequest)
       if (dryRunError != null) {
@@ -269,7 +282,7 @@ export class RelayClient {
         }
       }
     }
-
+    */
     const relaySelectionManager = await new RelaySelectionManager(gsnTransactionDetails, this.dependencies.knownRelaysManager, this.dependencies.httpClient, this.dependencies.pingFilter, this.logger, this.config).init()
     const count = relaySelectionManager.relaysLeft().length
     this.emit(new GsnDoneRefreshRelaysEvent(count))
@@ -337,6 +350,7 @@ export class RelayClient {
     this.logger.info(`attempting relay: ${JSON.stringify(relayInfo)} transaction: ${JSON.stringify(relayRequest)}`)
     await this.fillRelayInfo(relayRequest, relayInfo)
     const httpRequest = await this._prepareRelayHttpRequest(relayRequest, relayInfo)
+    await this.fillRelayInfo(relayRequest, relayInfo)
     this.emit(new GsnValidateRequestEvent())
 
     const error = await this._verifyViewCallSuccessful(relayInfo, asRelayCallAbi(httpRequest), false)
@@ -427,6 +441,7 @@ export class RelayClient {
     const value = gsnTransactionDetails.value ?? '0'
     const secondsNow = Math.round(Date.now() / 1000)
     const validUntilTime = (secondsNow + this.config.requestValidSeconds).toString()
+    const nonce = hexlify(nacl.randomBytes(deoxysii.NonceSize)) + "0000000000000000000000000000000000";    
     const relayRequest: RelayRequest = {
       request: {
         to: gsnTransactionDetails.to,
@@ -446,10 +461,11 @@ export class RelayClient {
         maxPriorityFeePerGas,
         paymaster,
         clientId: this.config.clientId,
-        forwarder
+        forwarder,
+        nonce,
+        publicKey: this.publicKey
       }
     }
-
     // put paymasterData into struct before signing
     relayRequest.relayData.paymasterData = await this.dependencies.asyncPaymasterData(relayRequest)
     return relayRequest
@@ -458,18 +474,74 @@ export class RelayClient {
   fillRelayInfo (relayRequest: RelayRequest, relayInfo: RelayInfo): void {
     relayRequest.relayData.relayWorker = relayInfo.pingResponse.relayWorkerAddress
     // cannot estimate before relay info is filled in
+    this.calculateCalldataCost(relayRequest)
+  }
+
+  calculateCalldataCost(relayRequest: RelayRequest): void {
     relayRequest.relayData.transactionCalldataGasUsed =
       this.dependencies.contractInteractor.estimateCalldataCostForRequest(relayRequest, this.config)
   }
 
+  
   async _prepareRelayHttpRequest (
     relayRequest: RelayRequest,
     relayInfo: RelayInfo
   ): Promise<RelayTransactionRequest> {
     this.emit(new GsnSignRequestEvent())
-    const signature = await this.dependencies.accountManager.sign(this.config.domainSeparatorName, relayRequest)
+
+    const originRelayRequest: RelayRequest = {
+      request : {
+        to: relayRequest.request.to,
+        data: relayRequest.request.data,
+        from: relayRequest.request.from,
+        value: relayRequest.request.value,
+        nonce: relayRequest.request.nonce,
+        gas: relayRequest.request.gas,
+        validUntilTime: relayRequest.request.validUntilTime
+      },
+      relayData: {
+        relayWorker: relayRequest.relayData.relayWorker,
+        transactionCalldataGasUsed: relayRequest.relayData.transactionCalldataGasUsed,
+        paymasterData: relayRequest.relayData.paymasterData,
+        maxFeePerGas: relayRequest.relayData.maxFeePerGas,
+        maxPriorityFeePerGas: relayRequest.relayData.maxPriorityFeePerGas,
+        paymaster: relayRequest.relayData.paymaster,
+        clientId: relayRequest.relayData.clientId,
+        forwarder: relayRequest.relayData.forwarder,
+        nonce: relayRequest.relayData.nonce,
+        publicKey: relayRequest.relayData.publicKey
+      }
+    }
+    
     const approvalData = await this.dependencies.asyncApprovalData(relayRequest)
 
+    const encodedData = this.dependencies.contractInteractor.web3.eth.abi.encodeParameter(
+      {
+        ForwardRequest: {
+          from: 'address',
+          to: 'address',
+          value: 'uint256',
+          gas: 'uint256',
+          nonce: 'uint256',
+          data: 'bytes',
+          validUntilTime: 'uint256'
+        }
+      },
+      {
+        from: relayRequest.request.from,
+        to: relayRequest.request.to,
+        value: parseInt(relayRequest.request.value),
+        gas: parseInt(relayRequest.request.gas),
+        nonce: parseInt(relayRequest.request.nonce),
+        data: relayRequest.request.data,
+        validUntilTime: parseInt(relayRequest.request.validUntilTime)
+      }
+    )
+    const nonce = arrayify(relayRequest.relayData.nonce)
+    relayRequest.request.data = hexlify(this.cipher.encrypt(nonce.slice(0, 15), arrayify(encodedData)))
+    relayRequest.request.from = constants.ZERO_ADDRESS
+    relayRequest.request.to = constants.ZERO_ADDRESS
+    
     if (toBuffer(relayRequest.relayData.paymasterData).length >
       this.config.maxPaymasterDataLength) {
       throw new Error('actual paymasterData larger than maxPaymasterDataLength')
@@ -479,6 +551,13 @@ export class RelayClient {
       throw new Error('actual approvalData larger than maxApprovalDataLength')
     }
 
+    // data field has been changed, need to re-calculate calldata cost
+    this.calculateCalldataCost(relayRequest)
+
+    originRelayRequest.relayData.transactionCalldataGasUsed = relayRequest.relayData.transactionCalldataGasUsed
+
+    const signature = await this.dependencies.accountManager.sign(this.config.domainSeparatorName, originRelayRequest)
+   
     // max nonce is not signed, as contracts cannot access addresses' nonces.
     const relayLastKnownNonce = await this.dependencies.contractInteractor.getTransactionCount(relayInfo.pingResponse.relayWorkerAddress)
     const relayMaxNonce = relayLastKnownNonce + this.config.maxRelayNonceGap

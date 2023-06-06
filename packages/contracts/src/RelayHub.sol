@@ -18,6 +18,7 @@ import "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@oasisprotocol/sapphire-contracts/contracts/Sapphire.sol";
 
 import "./utils/GsnUtils.sol";
 import "./utils/GsnEip712Library.sol";
@@ -39,7 +40,7 @@ contract RelayHub is IRelayHub, Ownable, ERC165 {
     using Address for address;
 
     address private constant DRY_RUN_ADDRESS = 0x0000000000000000000000000000000000000000;
-
+    
     /// @inheritdoc IRelayHub
     function versionHub() override virtual public pure returns (string memory){
         return "3.0.0-beta.2+opengsn.hub.irelayhub";
@@ -87,6 +88,9 @@ contract RelayHub is IRelayHub, Ownable, ERC165 {
     uint256 internal immutable creationBlock;
     uint256 internal deprecationTime = type(uint256).max;
 
+    Sapphire.Curve25519PublicKey internal publicKey;
+    Sapphire.Curve25519SecretKey internal privateKey;    
+
     constructor (
         IStakeManager _stakeManager,
         address _penalizer,
@@ -100,6 +104,12 @@ contract RelayHub is IRelayHub, Ownable, ERC165 {
         batchGateway = _batchGateway;
         relayRegistrar = _relayRegistrar;
         setConfiguration(_config);
+        (publicKey, privateKey) = Sapphire.generateCurve25519KeyPair("");
+    }
+
+    /// @inheritdoc IRelayHub
+    function getSymmetricKey(bytes32 peerPublicKey) external override virtual view returns (bytes32) {
+        return Sapphire.deriveSymmetricKey(Sapphire.Curve25519PublicKey.wrap(peerPublicKey), privateKey);
     }
 
     /// @inheritdoc IRelayHub
@@ -208,7 +218,7 @@ contract RelayHub is IRelayHub, Ownable, ERC165 {
         address payable account = payable(msg.sender);
         for (uint256 i = 0; i < amount.length; i++) {
             // #if ENABLE_CONSOLE_LOG
-            console.log("withdrawMultiple %s %s %s", balances[account], dest[i], amount[i]);
+            // console.log("withdrawMultiple %s %s %s", balances[account], dest[i], amount[i]);
             // #endif
             uint256 balance = balances[account];
             require(balance >= amount[i], "insufficient funds");
@@ -221,7 +231,7 @@ contract RelayHub is IRelayHub, Ownable, ERC165 {
 
     function verifyGasAndDataLimits(
         uint256 maxAcceptanceBudget,
-        GsnTypes.RelayRequest calldata relayRequest,
+        GsnTypes.RelayRequest memory relayRequest,
         uint256 initialGasLeft
     )
     private
@@ -247,6 +257,24 @@ contract RelayHub is IRelayHub, Ownable, ERC165 {
             "Paymaster balance too low");
     }
 
+
+    function decryptRelayRequest(GsnTypes.RelayRequest calldata relayRequest)
+        private
+        returns (GsnTypes.RelayRequest memory decryptedRelayRequest) {
+
+        decryptedRelayRequest = GsnTypes.RelayRequest({
+            request : relayRequest.request,
+            relayData : relayRequest.relayData
+            });
+
+        if (relayRequest.request.from == address(0) && relayRequest.request.to == address(0)) {
+            bytes32 symmetricKey = Sapphire.deriveSymmetricKey(Sapphire.Curve25519PublicKey.wrap(relayRequest.relayData.publicKey), privateKey);
+            bytes memory decryptedData = Sapphire.decrypt(symmetricKey, relayRequest.relayData.nonce, relayRequest.request.data, "");
+            IForwarder.ForwardRequest memory decryptedForwardRequest = abi.decode(decryptedData, (IForwarder.ForwardRequest));
+            decryptedRelayRequest.request = decryptedForwardRequest;
+        }
+    }
+
     struct RelayCallData {
         bool success;
         bytes4 functionSelector;
@@ -268,11 +296,12 @@ contract RelayHub is IRelayHub, Ownable, ERC165 {
         bytes relayCallStatus;
     }
 
+        
     /// @inheritdoc IRelayHub
     function relayCall(
         string calldata domainSeparatorName,
         uint256 maxAcceptanceBudget,
-        GsnTypes.RelayRequest calldata relayRequest,
+        GsnTypes.RelayRequest calldata rawRelayRequest,
         bytes calldata signature,
         bytes calldata approvalData
     )
@@ -286,9 +315,13 @@ contract RelayHub is IRelayHub, Ownable, ERC165 {
     {
         RelayCallData memory vars;
         vars.initialGasLeft = aggregateGasleft();
+
+        GsnTypes.RelayRequest memory relayRequest = decryptRelayRequest(rawRelayRequest);
+        
         vars.relayRequestId = GsnUtils.getRelayRequestID(relayRequest, signature);
 
         // #if ENABLE_CONSOLE_LOG
+        /*
         console.log("relayCall relayRequestId");
         console.logBytes32(vars.relayRequestId);
         console.log("relayCall relayRequest.request.from", relayRequest.request.from);
@@ -317,6 +350,7 @@ contract RelayHub is IRelayHub, Ownable, ERC165 {
         console.log("relayCall relayRequest.relayData.paymasterData");
         console.logBytes(relayRequest.relayData.paymasterData);
         console.log("relayCall maxAcceptanceBudget", maxAcceptanceBudget);
+        */
         // #endif
 
         require(!isDeprecated(), "hub deprecated");
@@ -336,8 +370,6 @@ contract RelayHub is IRelayHub, Ownable, ERC165 {
 
         (vars.gasAndDataLimits, vars.maxPossibleGas) =
             verifyGasAndDataLimits(maxAcceptanceBudget, relayRequest, vars.initialGasLeft);
-
-        RelayHubValidator.verifyTransactionPacking(domainSeparatorName,relayRequest,signature,approvalData);
 
     {
 
@@ -359,11 +391,18 @@ contract RelayHub is IRelayHub, Ownable, ERC165 {
         // Calls to the recipient are performed atomically inside an inner transaction which may revert in case of
         // errors in the recipient. In either case (revert or regular execution) the return data encodes the
         // RelayCallStatus value.
+        
+         InnerRelayCallParams memory params;
+         params.domainSeparatorName = domainSeparatorName;
+         params.relayRequest = relayRequest;
+         params.signature = signature;
+         params.approvalData = approvalData;
+         params.gasAndDataLimits = vars.gasAndDataLimits;
+         params.totalInitialGas = vars.tmpInitialGas - aggregateGasleft();
+         params.maxPossibleGas = vars.maxPossibleGas;
+
         (vars.success, vars.relayCallStatus) = address(this).call{gas:vars.innerGasLimit}(
-            abi.encodeWithSelector(RelayHub.innerRelayCall.selector, domainSeparatorName, relayRequest, signature, approvalData, vars.gasAndDataLimits,
-            vars.tmpInitialGas - aggregateGasleft(), /* totalInitialGas */
-            vars.maxPossibleGas
-            )
+            abi.encodeWithSelector(RelayHub.innerRelayCall.selector, params)
         );
         vars.innerGasUsed = vars.gasBeforeInner-aggregateGasleft();
         (vars.status, vars.relayedCallReturnValue) = abi.decode(vars.relayCallStatus, (RelayCallStatus, bytes));
@@ -372,27 +411,25 @@ contract RelayHub is IRelayHub, Ownable, ERC165 {
         }
     }
     {
+
         if (!vars.success) {
             //Failure cases where the PM doesn't pay
             if (vars.status == RelayCallStatus.RejectedByPreRelayed ||
-                    (vars.innerGasUsed <= vars.gasAndDataLimits.acceptanceBudget + relayRequest.relayData.transactionCalldataGasUsed) && (
+                (vars.innerGasUsed <= vars.gasAndDataLimits.acceptanceBudget + relayRequest.relayData.transactionCalldataGasUsed) && (
                     vars.status == RelayCallStatus.RejectedByForwarder ||
                     vars.status == RelayCallStatus.RejectedByRecipientRevert  //can only be thrown if rejectOnRecipientRevert==true
                 )) {
+
                 emit TransactionRejectedByPaymaster(
-                    vars.relayManager,
-                    relayRequest.relayData.paymaster,
-                    vars.relayRequestId,
-                    relayRequest.request.from,
-                    relayRequest.request.to,
-                    msg.sender,
-                    vars.functionSelector,
-                    vars.innerGasUsed,
-                    vars.relayedCallReturnValue);
+                 vars.relayManager,
+                 relayRequest.relayData.paymaster,
+                 vars.relayRequestId,
+                 msg.sender
+                 );
+                
                 return (false, 0, vars.status, vars.relayedCallReturnValue);
             }
         }
-
         // We now perform the actual charge calculation, based on the measured gas used
         vars.gasUsed = relayRequest.relayData.transactionCalldataGasUsed + (vars.initialGasLeft - aggregateGasleft()) + config.gasOverhead;
         charge = calculateCharge(vars.gasUsed, relayRequest.relayData);
@@ -415,7 +452,6 @@ contract RelayHub is IRelayHub, Ownable, ERC165 {
                 from,
                 to,
                 paymaster,
-                vars.functionSelector,
                 vars.status,
                 charge);
         }
@@ -440,25 +476,27 @@ contract RelayHub is IRelayHub, Ownable, ERC165 {
         bool rejectOnRecipientRevert;
     }
 
+    struct InnerRelayCallParams {
+        string domainSeparatorName;
+        GsnTypes.RelayRequest relayRequest;
+        bytes signature;
+        bytes approvalData;
+        IPaymaster.GasAndDataLimits gasAndDataLimits;
+        uint256 totalInitialGas;
+        uint256 maxPossibleGas;
+    }
+        
     /**
      * @notice This method can only by called by this `RelayHub`.
      * It wraps the execution of the `RelayRequest` in a revertable frame context.
      */
-    function innerRelayCall(
-        string calldata domainSeparatorName,
-        GsnTypes.RelayRequest calldata relayRequest,
-        bytes calldata signature,
-        bytes calldata approvalData,
-        IPaymaster.GasAndDataLimits calldata gasAndDataLimits,
-        uint256 totalInitialGas,
-        uint256 maxPossibleGas
-    )
+    function innerRelayCall(InnerRelayCallParams calldata params)
     external
     returns (RelayCallStatus, bytes memory)
     {
         InnerRelayCallData memory vars;
         vars.initialGasLeft = aggregateGasleft();
-        vars.gasUsedToCallInner = totalInitialGas - gasleft();
+        vars.gasUsedToCallInner = params.totalInitialGas - gasleft();
         // A new gas measurement is performed inside innerRelayCall, since
         // due to EIP150 available gas amounts cannot be directly compared across external calls
 
@@ -471,18 +509,18 @@ contract RelayHub is IRelayHub, Ownable, ERC165 {
 
         // The paymaster is no allowed to withdraw balance from RelayHub during a relayed transaction. We check pre and
         // post state to ensure this doesn't happen.
-        vars.balanceBefore = balances[relayRequest.relayData.paymaster];
+        vars.balanceBefore = balances[params.relayRequest.relayData.paymaster];
 
         // First preRelayedCall is executed.
         // Note: we open a new block to avoid growing the stack too much.
         vars.data = abi.encodeWithSelector(
             IPaymaster.preRelayedCall.selector,
-            relayRequest, signature, approvalData, maxPossibleGas
+            params.relayRequest, params.signature, params.approvalData, params.maxPossibleGas
         );
         {
             bool success;
             bytes memory retData;
-            (success, retData) = relayRequest.relayData.paymaster.call{gas:gasAndDataLimits.preRelayedCallGasLimit}(vars.data);
+            (success, retData) = params.relayRequest.relayData.paymaster.call{gas:params.gasAndDataLimits.preRelayedCallGasLimit}(vars.data);
             if (!success) {
                 GsnEip712Library.truncateInPlace(retData);
                 revertWithStatus(RelayCallStatus.RejectedByPreRelayed, retData);
@@ -494,7 +532,7 @@ contract RelayHub is IRelayHub, Ownable, ERC165 {
 
         {
             bool forwarderSuccess;
-            (forwarderSuccess, vars.relayedCallSuccess, vars.relayedCallReturnValue) = GsnEip712Library.execute(domainSeparatorName, relayRequest, signature);
+            (forwarderSuccess, vars.relayedCallSuccess, vars.relayedCallReturnValue) = GsnEip712Library.execute(params.domainSeparatorName, params.relayRequest, params.signature);
             if ( !forwarderSuccess ) {
                 revertWithStatus(RelayCallStatus.RejectedByForwarder, vars.relayedCallReturnValue);
             }
@@ -512,18 +550,18 @@ contract RelayHub is IRelayHub, Ownable, ERC165 {
             vars.recipientContext,
             vars.relayedCallSuccess,
             vars.gasUsedToCallInner + (vars.initialGasLeft - aggregateGasleft()), /*gasUseWithoutPost*/
-            relayRequest.relayData
+            params.relayRequest.relayData
         );
 
         {
-        (bool successPost,bytes memory ret) = relayRequest.relayData.paymaster.call{gas:gasAndDataLimits.postRelayedCallGasLimit}(vars.data);
+        (bool successPost,bytes memory ret) = params.relayRequest.relayData.paymaster.call{gas:params.gasAndDataLimits.postRelayedCallGasLimit}(vars.data);
 
             if (!successPost) {
                 revertWithStatus(RelayCallStatus.PostRelayedFailed, ret);
             }
         }
 
-        if (balances[relayRequest.relayData.paymaster] < vars.balanceBefore) {
+        if (balances[params.relayRequest.relayData.paymaster] < vars.balanceBefore) {
             revertWithStatus(RelayCallStatus.PaymasterBalanceChanged, "");
         }
 
@@ -556,7 +594,7 @@ contract RelayHub is IRelayHub, Ownable, ERC165 {
     }
 
     /// @inheritdoc IRelayHub
-    function calculateCharge(uint256 gasUsed, GsnTypes.RelayData calldata relayData) public override virtual view returns (uint256) {
+    function calculateCharge(uint256 gasUsed, GsnTypes.RelayData memory relayData) public override virtual view returns (uint256) {
         uint256 basefee;
         if (relayData.maxFeePerGas == relayData.maxPriorityFeePerGas) {
             basefee = 0;

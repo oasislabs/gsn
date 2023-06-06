@@ -38,7 +38,9 @@ export const RelayTransactionRequestShape = {
       paymaster: ow.string,
       paymasterData: ow.string,
       clientId: ow.string,
-      forwarder: ow.string
+      forwarder: ow.string,
+      publicKey: ow.string,
+      nonce: ow.string
     }
   },
   metadata: {

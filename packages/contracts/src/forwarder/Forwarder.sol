@@ -19,11 +19,23 @@ import "./IForwarder.sol";
 contract Forwarder is IForwarder, ERC165 {
     using ECDSA for bytes32;
 
-    address private constant DRY_RUN_ADDRESS = 0x0000000000000000000000000000000000000000;
+    address private constant DRY_RUN_ADDRESS =  0x0000000000000000000000000000000000000000;
 
     string public constant GENERIC_PARAMS = "address from,address to,uint256 value,uint256 gas,uint256 nonce,bytes data,uint256 validUntilTime";
 
     string public constant EIP712_DOMAIN_TYPE = "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)";
+
+
+    bytes public constant RELAYDATA_TYPE = "RelayData(uint256 maxFeePerGas,uint256 maxPriorityFeePerGas,uint256 transactionCalldataGasUsed,address relayWorker,address paymaster,address forwarder,bytes paymasterData,uint256 clientId)";
+
+    string public constant RELAY_REQUEST_NAME = "RelayRequest";
+    
+    string public constant RELAY_REQUEST_SUFFIX = string(abi.encodePacked("RelayData relayData)", RELAYDATA_TYPE));
+
+    string public constant RELAY_REQUEST_TYPE = string(abi.encodePacked(
+                                                                        RELAY_REQUEST_NAME,"(",GENERIC_PARAMS,",", RELAY_REQUEST_SUFFIX));
+
+    bytes32 public constant RELAY_REQUEST_TYPEHASH = keccak256(bytes(RELAY_REQUEST_TYPE));
 
     mapping(bytes32 => bool) public typeHashes;
     mapping(bytes32 => bool) public domains;
@@ -163,7 +175,7 @@ contract Forwarder is IForwarder, ERC165 {
         bytes32 digest = keccak256(abi.encodePacked(
                 "\x19\x01", domainSeparator,
                 keccak256(_getEncoded(req, requestTypeHash, suffixData))
-            ));
+             ));
         // solhint-disable-next-line avoid-tx-origin
         require(tx.origin == DRY_RUN_ADDRESS || digest.recover(sig) == req.from, "FWD: signature mismatch");
     }
@@ -184,6 +196,7 @@ contract Forwarder is IForwarder, ERC165 {
         // we use encodePacked since we append suffixData as-is, not as dynamic param.
         // still, we must make sure all first params are encoded as abi.encode()
         // would encode them - as 256-bit-wide params.
+
         return abi.encodePacked(
             requestTypeHash,
             uint256(uint160(req.from)),

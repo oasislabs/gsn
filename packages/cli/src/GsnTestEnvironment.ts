@@ -65,7 +65,7 @@ class GsnTestEnvironmentClass {
       burnAddress: constants.BURN_ADDRESS,
       devAddress: constants.BURN_ADDRESS,
       minimumTokenStake: 1,
-      gasPrice: 1e9.toString(),
+      gasPrice: 1e11.toString(),
       gasLimit: 5000000,
       deployTestToken: true,
       deployPaymaster: true,
@@ -73,6 +73,7 @@ class GsnTestEnvironmentClass {
       penalizerConfiguration: defaultEnvironment.penalizerConfiguration,
       relayHubConfiguration: defaultEnvironment.relayHubConfiguration
     })
+
     if (deploymentResult.paymasterAddress != null) {
       const balance = await commandsLogic.fundPaymaster(from, deploymentResult.paymasterAddress, ether('1'))
       console.log('Naive Paymaster successfully funded, balance:', Web3.utils.fromWei(balance))
@@ -89,12 +90,12 @@ class GsnTestEnvironmentClass {
       // force using default (wrapped eth) token
       wrap: true,
       from,
-      sleepMs: 100,
-      sleepCount: 5,
+      sleepMs: 2000,
+      sleepCount: 10,
       stake: '1',
-      funds: ether('5'),
+      funds: ether('1'),
       relayUrl: relayUrl,
-      gasPrice: 1e9.toString(),
+      gasPrice: 1e11.toString(),
       unstakeDelay: '15000'
     }
     const registrationResult = await commandsLogic.registerRelay(registerOptions)
@@ -206,7 +207,7 @@ class GsnTestEnvironmentClass {
       refreshStateTimeoutBlocks: 1,
       runPaymasterReputations: true,
       logLevel: 'error',
-      workerTargetBalance: 1e18
+      workerTargetBalance: 0.1e18
     }
     const transactionManager = new TransactionManager(relayServerDependencies, configureServer(relayServerParams))
     const backend = new RelayServer(relayServerParams, transactionManager, relayServerDependencies)

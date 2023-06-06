@@ -14,7 +14,8 @@ import {
   ObjectMap,
   TransactionType,
   constants,
-  isSameAddress
+  isSameAddress,
+  sleep,
 } from '@opengsn/common'
 
 import { TxStoreManager } from './TxStoreManager'
@@ -30,6 +31,10 @@ import {
 
 import { GasPriceFetcher } from './GasPriceFetcher'
 import { toBN } from 'web3-utils'
+
+import { arrayify } from '@ethersproject/bytes'
+import * as sapphire from '@oasisprotocol/sapphire-paratime'
+let _cipher: sapphire.cipher.X25519DeoxysII
 
 export interface SignedTransactionDetails {
   transactionHash: PrefixedHexString
@@ -84,6 +89,9 @@ export class TransactionManager extends EventEmitter {
 
   async init (transactionType: TransactionType): Promise<void> {
     this.transactionType = transactionType
+    const publicKey = await sapphire.cipher.fetchRuntimePublicKeyByChainId(0x5aff)
+    _cipher = sapphire.cipher.X25519DeoxysII.ephemeral(publicKey)
+
     this.rawTxOptions = this.contractInteractor.getRawTxOptions()
     if (this.rawTxOptions == null) {
       throw new Error('init failed for TransactionManager, was ContractInteractor properly initialized?')
@@ -141,6 +149,8 @@ data                     | ${transaction.data}
         throw new Error(`txhash mismatch: from receipt: ${transactionHash} from txstore:${verifiedTxId}`)
       }
       this.emit('TransactionBroadcast')
+      console.log("sleep 20 seconds for broadcast transaction")
+      await sleep(20000)     
       return {
         transactionHash,
         signedTx,
@@ -166,7 +176,7 @@ data                     | ${transaction.data}
     const maxPriorityFeePerGas = parseInt(txDetails.maxPriorityFeePerGas ?? maxFeePerGas.toString())
 
     let gasLimit = txDetails.gasLimit
-    if (gasLimit == null) {
+    if (gasLimit == null) {      
       gasLimit = await this.contractInteractor.estimateGas({
         from: txDetails.signer,
         to: txDetails.destination,
@@ -188,6 +198,10 @@ data                     | ${transaction.data}
     try {
       nonce = await this.pollNonce(txDetails.signer)
 
+      const originData = arrayify(encodedCall)
+      const encryptData = await _cipher.encryptEncode(originData)
+      const data = Buffer.from(encryptData.slice(2), 'hex')
+
       let txToSign: TypedTransaction
       if (this.transactionType === TransactionType.TYPE_TWO) {
         txToSign = new FeeMarketEIP1559Transaction({
@@ -196,7 +210,7 @@ data                     | ${transaction.data}
           gasLimit: gasLimit,
           maxFeePerGas,
           maxPriorityFeePerGas: maxPriorityFeePerGas,
-          data: Buffer.from(encodedCall.slice(2), 'hex'),
+          data,
           nonce
         }, this.rawTxOptions)
       } else {
@@ -205,7 +219,7 @@ data                     | ${transaction.data}
           value: txDetails.value,
           gasLimit: gasLimit,
           gasPrice: maxFeePerGas,
-          data: Buffer.from(encodedCall.slice(2), 'hex'),
+          data,
           nonce
         }, this.rawTxOptions)
       }
