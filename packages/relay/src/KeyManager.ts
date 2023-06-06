@@ -29,7 +29,6 @@ export class KeyManager {
     if (seed != null && workdir != null) {
       throw new Error('Can\'t specify both seed and workdir')
     }
-    console.log(workdir);
     if (workdir != null) {
       if (!fs.existsSync(workdir)) {
         fs.mkdirSync(workdir, { recursive: true })

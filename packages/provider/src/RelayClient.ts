@@ -298,14 +298,12 @@ export class RelayClient {
       const relayHub = this.dependencies.contractInteractor.getDeployment().relayHubAddress ?? ''
       const activeRelay = await relaySelectionManager.selectNextRelay(relayHub, paymaster)
       if (activeRelay != null) {
-        console.log(`activeRelay url: ${activeRelay.relayInfo.relayUrl}`)
         this.emit(new GsnNextRelayEvent(activeRelay.relayInfo.relayUrl))
         relayingAttempt = await this._attemptRelay(activeRelay, relayRequest)
           .catch(error => ({ error }))
         if (relayingAttempt.auditPromise != null) {
           auditPromises.push(relayingAttempt.auditPromise)
         }
-        console.log(`relayingAttempt: ${JSON.stringify(relayingAttempt)}`);
         if (relayingAttempt.transaction == null) {
           relayingErrors.set(activeRelay.relayInfo.relayUrl, relayingAttempt.error ?? new Error('No error reason was given'))
           if (relayingAttempt.isRelayError ?? false) {
@@ -352,7 +350,6 @@ export class RelayClient {
     this.logger.info(`attempting relay: ${JSON.stringify(relayInfo)} transaction: ${JSON.stringify(relayRequest)}`)
     await this.fillRelayInfo(relayRequest, relayInfo)
     const httpRequest = await this._prepareRelayHttpRequest(relayRequest, relayInfo)
-    console.log(`attempting relay: ${JSON.stringify(relayInfo)} transaction: ${JSON.stringify(relayRequest)}`)
     await this.fillRelayInfo(relayRequest, relayInfo)
     this.emit(new GsnValidateRequestEvent())
 
@@ -469,7 +466,6 @@ export class RelayClient {
         publicKey: this.publicKey
       }
     }
-    console.log(`_prepareRelayRequest: relayReuest: ${JSON.stringify(relayRequest)}`)
     // put paymasterData into struct before signing
     relayRequest.relayData.paymasterData = await this.dependencies.asyncPaymasterData(relayRequest)
     return relayRequest
@@ -484,7 +480,6 @@ export class RelayClient {
   calculateCalldataCost(relayRequest: RelayRequest): void {
     relayRequest.relayData.transactionCalldataGasUsed =
       this.dependencies.contractInteractor.estimateCalldataCostForRequest(relayRequest, this.config)
-    console.log("transactionCalldataGasUsed: ", relayRequest.relayData.transactionCalldataGasUsed)
   }
 
   
@@ -493,8 +488,6 @@ export class RelayClient {
     relayInfo: RelayInfo
   ): Promise<RelayTransactionRequest> {
     this.emit(new GsnSignRequestEvent())
-    console.log(`_prepareRelayHttpRequest: ${JSON.stringify(relayInfo)} transaction: ${JSON.stringify(relayRequest)}`)
-    console.log(`_prepareRelayHttpRequest: domain separate name: ${this.config.domainSeparatorName}`)
 
     const originRelayRequest: RelayRequest = {
       request : {
@@ -564,7 +557,6 @@ export class RelayClient {
     originRelayRequest.relayData.transactionCalldataGasUsed = relayRequest.relayData.transactionCalldataGasUsed
 
     const signature = await this.dependencies.accountManager.sign(this.config.domainSeparatorName, originRelayRequest)
-    console.log(`_prepareRelayHttpRequest: signature: ${signature}`)
    
     // max nonce is not signed, as contracts cannot access addresses' nonces.
     const relayLastKnownNonce = await this.dependencies.contractInteractor.getTransactionCount(relayInfo.pingResponse.relayWorkerAddress)

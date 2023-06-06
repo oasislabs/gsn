@@ -40,7 +40,6 @@ contract RelayHub is IRelayHub, Ownable, ERC165 {
     using Address for address;
 
     address private constant DRY_RUN_ADDRESS = 0x0000000000000000000000000000000000000000;
-    address private constant ZERO_ADDRESS = 0x0000000000000000000000000000000000000000;
     
     /// @inheritdoc IRelayHub
     function versionHub() override virtual public pure returns (string memory){
@@ -268,7 +267,7 @@ contract RelayHub is IRelayHub, Ownable, ERC165 {
             relayData : relayRequest.relayData
             });
 
-        if (relayRequest.request.from == ZERO_ADDRESS && relayRequest.request.to == ZERO_ADDRESS) {
+        if (relayRequest.request.from == address(0) && relayRequest.request.to == address(0)) {
             bytes32 symmetricKey = Sapphire.deriveSymmetricKey(Sapphire.Curve25519PublicKey.wrap(relayRequest.relayData.publicKey), privateKey);
             bytes memory decryptedData = Sapphire.decrypt(symmetricKey, relayRequest.relayData.nonce, relayRequest.request.data, "");
             IForwarder.ForwardRequest memory decryptedForwardRequest = abi.decode(decryptedData, (IForwarder.ForwardRequest));
@@ -317,8 +316,6 @@ contract RelayHub is IRelayHub, Ownable, ERC165 {
         RelayCallData memory vars;
         vars.initialGasLeft = aggregateGasleft();
 
-        // RelayHubValidator.verifyTransactionPacking(domainSeparatorName,rawRelayRequest,signature,approvalData);
-                
         GsnTypes.RelayRequest memory relayRequest = decryptRelayRequest(rawRelayRequest);
         
         vars.relayRequestId = GsnUtils.getRelayRequestID(relayRequest, signature);

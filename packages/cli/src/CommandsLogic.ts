@@ -133,9 +133,8 @@ export class CommandsLogic {
       timeout: 120000
     })
     provider.sendAsync = provider.send.bind(provider)
-    if (privateKey == null) {
+    if (privateKey === null) {
       privateKey = process.env.PRIVATE_KEY
-      console.log(`the process.env.PRIVATE_KEY is ${privateKey}`)
     }
     if (mnemonic != null || privateKey != null) {
       let hdWalletConstructorArguments: any

@@ -9,7 +9,6 @@ gsnCommander(['n'])
 (async () => {
   try {
     const network: string = commander.network
-    console.log(`network is ${network}`)
     const env = await GsnTestEnvironment.startGsn(network)
     saveDeployment(env.contractsDeployment, commander.workdir)
     showDeployment(env.contractsDeployment, 'GSN started')

@@ -296,7 +296,6 @@ export class RelayProvider implements HttpProvider, Web3ProviderBaseInterface {
   _onRelayTransactionFulfilled (relayingResult: RelayingResult, payload: JsonRpcPayload, callback: JsonRpcCallback): void {
     if (relayingResult.relayRequestID != null) {
       const jsonRpcSendResult = this._convertRelayRequestIdToRpcSendResponse(relayingResult.relayRequestID, payload)
-      console.log(`_onRelayTransactionFulfilled: jsonRpcSendResult: ${JSON.stringify(jsonRpcSendResult)}`);
       this.cacheSubmittedTransactionDetails(relayingResult)
       callback(null, jsonRpcSendResult)
     } else {
