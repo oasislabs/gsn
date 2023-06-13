@@ -1,5 +1,5 @@
 import { GsnDomainSeparatorType, GsnRequestType } from './TypedRequestData'
-import { IForwarderInstance } from '@opengsn/contracts/types/truffle-contracts'
+import { IForwarderInstance } from '@oasislabs/opengsn-contracts/types/truffle-contracts'
 import { Contract } from 'web3-eth-contract'
 import { LoggerInterface } from '../LoggerInterface'
 

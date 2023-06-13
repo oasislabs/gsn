@@ -3,10 +3,6 @@
   "version": "3.0.0-beta.3",
   "license": "GPL-3.0-only",
   "main": "dist/index.js",
-  "bin": {
-    "gsn": "dist/commands/gsn.js",
-    "run-with-gsn": "scripts/run-with-gsn"
-  },
   "scripts": {
     "tsc": "tsc",
     "watch-tsc": "tsc -w --preserveWatchOutput",
@@ -24,11 +20,11 @@
     "access": "public"
   },
   "dependencies": {
-      "@ethereumjs/tx": "^3.2.0",
-      "@opengsn/common": "npm:@oasislabs/opengsn-common@^3.0.0-beta.3",
-      "@opengsn/provider": "npm:@oasislabs/opengsn-provider@^3.0.0-beta.3",
-      "@opengsn/logger": "npm:@oasislabs/opengsn-logger@^3.0.0-beta.2",
-      "@opengsn/relay": "npm:@oasislabs/opengsn-relay@^3.0.0-beta.3",
+    "@ethereumjs/tx": "^3.2.0",
+    "@opengsn/common": "npm:@oasislabs/opengsn-common@^3.0.0-beta.3",
+    "@opengsn/provider": "npm:@oasislabs/opengsn-provider@^3.0.0-beta.3",
+    "@opengsn/logger": "npm:@oasislabs/opengsn-logger@^3.0.0-beta.2",
+    "@opengsn/relay": "npm:@oasislabs/opengsn-relay@^3.0.0-beta.3",
     "@truffle/hdwallet-provider": "^2.0.10",
     "@types/asciichart": "^1.5.4",
     "@types/clear": "^0.1.1",
