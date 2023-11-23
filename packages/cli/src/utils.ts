@@ -18,7 +18,8 @@ export const networks = new Map<string, string>([
   ['kovan', 'https://kovan.infura.io/v3/' + cliInfuraId],
   ['goerli', 'https://goerli.infura.io/v3/' + cliInfuraId],
   ['mainnet', 'https://mainnet.infura.io/v3/' + cliInfuraId],
-  ['sapphire_testnet', 'https://testnet.sapphire.oasis.dev']
+  ['sapphire', 'https://sapphire.oasis.io']
+  ['sapphire-testnet', 'https://testnet.sapphire.oasis.dev']
 ])
 
 export const networksBlockExplorers = new Map<string, string>([
@@ -30,7 +31,8 @@ export const networksBlockExplorers = new Map<string, string>([
   ['kovan', 'https://kovan.etherscan.io/'],
   ['goerli', 'https://goerli.etherscan.io/'],
   ['mainnet', 'https://etherscan.io/'],
-  ['sapphire_testnet', 'http://testnet.explorer.sapphire.oasis.dev/']
+  ['sapphire', 'https://explorer.oasis.io/mainnet/sapphire/']
+  ['sapphire-testnet', 'https://explorer.oasis.io/testnet/sapphire/']
 ])
 
 export function supportedNetworks (): string[] {
