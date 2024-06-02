@@ -44,7 +44,7 @@ import {
   IRelayHubInstance,
   IRelayRegistrarInstance,
   IStakeManagerInstance
-} from '@opengsn/contracts/types/truffle-contracts'
+} from '@oasislabs/opengsn-contracts/types/truffle-contracts'
 
 import { Address, EventName, IntString, ObjectMap, SemVerString, Web3ProviderBaseInterface } from './types/Aliases'
 import { GsnTransactionDetails } from './types/GsnTransactionDetails'
